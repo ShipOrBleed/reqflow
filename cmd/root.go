@@ -15,7 +15,7 @@ func Execute() {
 	filter := flag.String("filter", "", "Filter by package path")
 	
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: structmap [flags] [packages]\n")
+		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
 		flag.PrintDefaults()
 	}
 
@@ -44,7 +44,7 @@ func Execute() {
 	case "dot":
 		r = &render.DOTRenderer{}
 	case "svg":
-		fmt.Fprintf(os.Stderr, "SVG rendering is not natively supported yet, pipe dot format into graphviz: structmap -format dot | dot -Tsvg\n")
+		fmt.Fprintf(os.Stderr, "SVG rendering is not natively supported yet, pipe dot format into graphviz: govis -format dot | dot -Tsvg\n")
 		r = &render.DOTRenderer{}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown format: %s\n", *format)

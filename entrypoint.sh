@@ -8,14 +8,13 @@ echo "Generating structmap for $DIR..."
 
 # Generate the markdown
 echo '```mermaid' > structmap.md
-structmap "${DIR}" --filter="${FILTER}" >> structmap.md
+govis -format mermaid "${DIR}" -filter="${FILTER}" >> structmap.md
 echo '```' >> structmap.md
 
 # Post to PR if PR event
 if [ -n "$GITHUB_EVENT_PATH" ]; then
     PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
     if [ "$PR_NUMBER" != "null" ]; then
-        COMMENT_BODY=$(cat structmap.md)
         # Using GitHub CLI to add a PR comment
         # The GH_TOKEN environment variable must be passed into the container
         if [ -n "$GITHUB_TOKEN" ]; then

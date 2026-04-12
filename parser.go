@@ -155,22 +155,35 @@ func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 }
 
 func isHTTPHandler(fn *ast.FuncDecl, info *types.Info) bool {
-	if fn.Type.Params == nil {
-		return false
-	}
-	p := fn.Type.Params.List
-	if len(p) != 2 {
+	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
 		return false
 	}
 
-	t0 := info.TypeOf(p[0].Type)
-	t1 := info.TypeOf(p[1].Type)
-
-	if t0 == nil || t1 == nil {
-		return false
+	// Single parameter handlers (Gin, Echo, Fiber)
+	if len(fn.Type.Params.List) == 1 {
+		t0 := info.TypeOf(fn.Type.Params.List[0].Type)
+		if t0 != nil {
+			typeStr := t0.String()
+			if strings.Contains(typeStr, "gin.Context") ||
+				strings.Contains(typeStr, "echo.Context") ||
+				strings.Contains(typeStr, "fiber.Ctx") {
+				return true
+			}
+		}
 	}
 
-	return t0.String() == "net/http.ResponseWriter" && strings.HasSuffix(t1.String(), "net/http.Request")
+	// Two parameter handlers (net/http standard)
+	if len(fn.Type.Params.List) == 2 {
+		t0 := info.TypeOf(fn.Type.Params.List[0].Type)
+		t1 := info.TypeOf(fn.Type.Params.List[1].Type)
+		if t0 != nil && t1 != nil {
+			if strings.HasSuffix(t0.String(), "net/http.ResponseWriter") && strings.HasSuffix(t1.String(), "net/http.Request") {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func extractDependencies(fn *ast.FuncDecl, info *types.Info, node *Node) {
