@@ -22,7 +22,13 @@ type VTable struct {
 
 // parseVitessSchema enriches the graph with PlanetScale/Vitess topologies
 func parseVitessSchema(dir string, graph *Graph) {
-	vschemaPath := filepath.Join(dir, "vschema.json")
+	// Often packages target is './...' which breaks filepath.Join. We should scan working root
+	baseDir := dir
+	if baseDir == "./..." || baseDir == "" {
+		baseDir = "."
+	}
+	
+	vschemaPath := filepath.Join(baseDir, "vschema.json")
 	
 	bytes, err := os.ReadFile(vschemaPath)
 	if err != nil {

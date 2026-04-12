@@ -108,7 +108,23 @@ func extractRoutes(pkgs []*packages.Package, graph *Graph) {
 func extractEvents(pkgs []*packages.Package, graph *Graph) {
 	for _, pkg := range pkgs {
 		for _, file := range pkg.Syntax {
+			var currentCallerID string
 			ast.Inspect(file, func(n ast.Node) bool {
+				// Track the current function or struct we are touring
+				if fn, ok := n.(*ast.FuncDecl); ok {
+					if fn.Recv != nil && len(fn.Recv.List) > 0 {
+						if star, ok := fn.Recv.List[0].Type.(*ast.StarExpr); ok {
+							if ident, ok := star.X.(*ast.Ident); ok {
+								currentCallerID = fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
+							}
+						} else if ident, ok := fn.Recv.List[0].Type.(*ast.Ident); ok {
+							currentCallerID = fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
+						}
+					} else {
+						currentCallerID = fmt.Sprintf("%s.%s", pkg.PkgPath, fn.Name.Name)
+					}
+				}
+
 				call, ok := n.(*ast.CallExpr)
 				if !ok { return true }
 				sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -132,6 +148,17 @@ func extractEvents(pkgs []*packages.Package, graph *Graph) {
 								Name:    "📢 Topic: " + topicStr,
 								Package: "event",
 							})
+						}
+						
+						// Add missing edge from Caller -> EventTopic
+						if currentCallerID != "" {
+							if _, exists := graph.Nodes[currentCallerID]; exists {
+								if method == "Subscribe" || method == "Consume" {
+									graph.AddEdge(busID, currentCallerID, EdgeDepends)
+								} else {
+									graph.AddEdge(currentCallerID, busID, EdgeDepends)
+								}
+							}
 						}
 					}
 				}
