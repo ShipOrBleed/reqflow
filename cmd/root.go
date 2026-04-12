@@ -26,6 +26,11 @@ func Execute() {
 	cycles := flag.Bool("cycles", false, "Detect circular dependencies in the architecture")
 	metrics := flag.Bool("metrics", false, "Print coupling metrics (fan-in/fan-out) for all components")
 	errCheck := flag.Bool("errcheck", false, "Detect swallowed/ignored error return values")
+	security := flag.Bool("security", false, "Detect security anti-patterns (hardcoded secrets, SQL injection, weak crypto)")
+	techDebt := flag.Bool("techdebt", false, "Scan for TODO/FIXME/HACK comments and map to components")
+	coverFile := flag.String("cover", "", "Path to Go test coverage profile (cover.out) for coverage correlation")
+	constructors := flag.Bool("constructors", false, "Detect structs missing New*() constructor functions")
+	fullAudit := flag.Bool("audit", false, "Run ALL analysis checks at once (cycles, metrics, deadcode, errcheck, security, techdebt, constructors)")
 	
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
@@ -51,6 +56,17 @@ func Execute() {
 		Filter: *filter,
 		Focus:  *focus,
 		Config: loadedConfig,
+	}
+
+	// 🔥 Full Audit Mode — enables every single check
+	if *fullAudit {
+		*cycles = true
+		*metrics = true
+		*deadcode = true
+		*errCheck = true
+		*security = true
+		*techDebt = true
+		*constructors = true
 	}
 
 	graph, err := structmap.Parse(opts)
@@ -184,6 +200,96 @@ func Execute() {
 					fmt.Fprintf(os.Stderr, "  - %s:%d in %s() — ignoring error from %s()\n", e.File, e.Line, e.FuncName, e.CallExpr)
 				}
 				fmt.Fprintf(os.Stderr, "  Total swallowed errors: %d\n", len(errors))
+			}
+		}
+	}
+
+	// 🔒 V4: Security Anti-Pattern Detection
+	if *security {
+		pkgCfg := &packages.Config{
+			Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+			Dir:  opts.Dir,
+		}
+		pkgs, err := packages.Load(pkgCfg, "./...")
+		if err == nil {
+			issues := structmap.DetectSecurityIssues(pkgs)
+			fmt.Fprintf(os.Stderr, "\n🔒 SECURITY ANTI-PATTERN SCAN:\n")
+			if len(issues) == 0 {
+				fmt.Fprintf(os.Stderr, "  ✅ No security issues found!\n")
+			} else {
+				for _, issue := range issues {
+					severityIcon := "🟡"
+					if issue.Severity == "critical" {
+						severityIcon = "🔴"
+					} else if issue.Severity == "high" {
+						severityIcon = "🟠"
+					}
+					fmt.Fprintf(os.Stderr, "  %s [%s] %s:%d — %s\n", severityIcon, issue.Kind, issue.File, issue.Line, issue.Detail)
+				}
+				fmt.Fprintf(os.Stderr, "  Total security issues: %d\n", len(issues))
+			}
+		}
+	}
+
+	// 📌 V4: Technical Debt Scanner
+	if *techDebt {
+		pkgCfg := &packages.Config{
+			Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+			Dir:  opts.Dir,
+		}
+		pkgs, err := packages.Load(pkgCfg, "./...")
+		if err == nil {
+			debts := structmap.DetectTechDebt(pkgs, graph)
+			fmt.Fprintf(os.Stderr, "\n📌 TECHNICAL DEBT SCAN:\n")
+			if len(debts) == 0 {
+				fmt.Fprintf(os.Stderr, "  ✅ No TODO/FIXME/HACK comments found!\n")
+			} else {
+				for _, d := range debts {
+					fmt.Fprintf(os.Stderr, "  - [%s] %s:%d — %s\n", d.Kind, d.File, d.Line, d.Comment)
+				}
+				fmt.Fprintf(os.Stderr, "  Total debt markers: %d\n", len(debts))
+			}
+		}
+	}
+
+	// 🧪 V4: Test Coverage Correlation
+	if *coverFile != "" {
+		err := structmap.LoadCoverageProfile(*coverFile, graph)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  Could not load coverage profile: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "\n🧪 COVERAGE CORRELATION:\n")
+			for _, n := range graph.Nodes {
+				if cov, ok := n.Meta["coverage"]; ok {
+					riskIcon := "✅"
+					if n.Meta["coverage_risk"] == "critical" {
+						riskIcon = "🔴"
+					} else if n.Meta["coverage_risk"] == "low" {
+						riskIcon = "🟡"
+					}
+					fmt.Fprintf(os.Stderr, "  %s %s: %s coverage\n", riskIcon, n.Name, cov)
+				}
+			}
+		}
+	}
+
+	// 🔨 V4: Constructor Validation
+	if *constructors {
+		pkgCfg := &packages.Config{
+			Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+			Dir:  opts.Dir,
+		}
+		pkgs, err := packages.Load(pkgCfg, "./...")
+		if err == nil {
+			missing := structmap.DetectMissingConstructors(pkgs, graph)
+			fmt.Fprintf(os.Stderr, "\n🔨 CONSTRUCTOR VALIDATION:\n")
+			if len(missing) == 0 {
+				fmt.Fprintf(os.Stderr, "  ✅ All structs have New*() constructors!\n")
+			} else {
+				for _, m := range missing {
+					fmt.Fprintf(os.Stderr, "  - Missing New%s() in %s (%s:%d)\n", m.StructName, m.Package, m.File, m.Line)
+				}
+				fmt.Fprintf(os.Stderr, "  Total missing constructors: %d\n", len(missing))
 			}
 		}
 	}

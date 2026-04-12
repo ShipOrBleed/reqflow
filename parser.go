@@ -73,7 +73,10 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	// 8. External infrastructure mapping (go.mod)
 	ExtractGoModDeps(opts.Dir, graph)
 
-	// 9. Shrink visual scope if focused
+	// 9. Concurrency pattern detection
+	DetectConcurrency(pkgs, graph)
+
+	// 10. Shrink visual scope if focused
 	if opts.Focus != "" {
 		applyFocus(graph, opts.Focus)
 	}
