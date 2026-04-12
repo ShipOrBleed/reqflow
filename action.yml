@@ -1,0 +1,18 @@
+name: 'Go StructMap Generator'
+description: 'Generates Mermaid diagram of your Go codebase and posts it on PRs'
+author: 'zopdev'
+branding:
+  icon: 'map'
+  color: 'blue'
+inputs:
+  dir:
+    description: 'The directory or packages to parse (e.g. ./...)'
+    required: false
+    default: './...'
+  filter:
+    description: 'Filter specific packages'
+    required: false
+    default: ''
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
