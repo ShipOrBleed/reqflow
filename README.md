@@ -1,140 +1,79 @@
 # Govis 🔍📦
 
-**Govis** is a powerful Go package and CLI tool designed to automatically analyze and visualize your Go backend architectures. It helps developers—from total newbies to seasoned veterans—understand how a codebase works, which components talk to each other, and how the entire backend is connected.
+**Govis** is a blazing-fast, industry-grade Go architecture visualizer and linter. It parses Go ASTs natively to map dependencies, clean architecture layers, event bus topics, and framework usage, outputting highly interactive dashboards or enforcing structure directly in your CI/CD pipelines.
 
-Whether you've just inherited a massive legacy codebase or want to automatically document your current project's architecture, Govis easily generates class diagrams and architecture charts out of your code!
-
----
-
-## 🌟 Features
-
-- **Blazing Fast Parsing:** Uses the robust `golang.org/x/tools/go/packages` toolchain to deeply understand your code's Syntax, Types, and Imports.
-- **Smart Component Detection:** Automatically identifies and categorizes your backend components:
-  - `Structs` and `Interfaces`
-  - `Store` (Database layer detection)
-  - `Functions` & `Constructors`
-  - **Framework-Agnostic HTTP Handlers:** Detects handlers not just for standard `net/http`, but also natively parses handlers from popular frameworks including **Gin**, **Echo**, and **Fiber**!
-- **Deep Relationship Mapping:** Govis maps out complex connections like:
-  - Interface *Implementations* (both value and pointer receivers)
-  - Struct *Embeds* (composition)
-  - Dependency Injection (detects what components rely on others through constructors)
-- **Multiple Export Formats:** Render your architecture natively to:
-  - **Mermaid.js** (Perfect for Markdown files and GitHub PRs)
-  - **DOT** (Perfect for Graphviz parsing)
-  - **SVG** (Via Graphviz DOT piping)
-  - **HTML Interactive Dashboard:** Directly generates a standalone web page with zoom, panning, and legend.
-  - **JSON Data Export:** For building your own UI, pipelining, or integrations.
-
-### 🛡️ Architecture Linter (`govis vet`)
-Govis acts as a strict architecture guardrail. You can pass a rule like `-vet="handler!store"` and Govis will analyze your dependency structures. If any Junior Dev tries to import a Database Store directly into an HTTP Handler, it will print a `🚨 VIOLATION` error and exit with status 1, failing your CI/CD!
-
-### 🔭 The Focus Feature
-Got a massive 100,000-line monolith? Govis has a `--focus` flag! Provide the name of a `Service`, `Model`, or `Controller`, and Govis will strip away the noise—giving you an isolated, targeted map of just that specific component and its immediate dependencies.
-
-### 🛣️ API Route Extraction
-Govis's AST parser doesn't just find handlers—it detects your literal `router.GET("/api/v1/users")` definitions and automatically stamps those textual URLs right onto your generated visual nodes!
+Whether you've inherited a chaotic massive codebase and need to find the dead code, or you're a strict Tech Lead wanting to mathematically block spaghetti-code during PR checks, Govis gives you X-Ray vision into your Go projects.
 
 ---
 
-## 🚀 Installation
+## 🌟 What Problem Does This Solve?
 
-For any Go developer, installing Govis is as simple as running:
-
-```bash
-go install github.com/zopdev/govis/cmd/govis@latest
-```
-
-*(Make sure your `$(go env GOPATH)/bin` directory is in your system `$PATH`)*
+1. **"I can't read this diagram, it has 10,000 nodes."** Govis natively supports Click-To-Code deep-linking (click a node, open the exact line in VSCode), `--focus` micro-scoping, and beautiful interactive HTML dashboards.
+2. **"Junior developers keep importing the Database into the HTTP layer."** Govis acts as a strict Architecture Guardrail using the `-vet` flag. 
+3. **"What architectural changes did this Pull Request introduce?"** Govis can structurally `-diff` two branches and visually highlight what was built and what was destroyed.
 
 ---
 
-## 💻 Usage
+## 🚀 Features & Usage
 
-Run Govis directly in your project root to map your codebase!
-
-### Generate a Mermaid Diagram
-Mermaid diagrams are incredible because you can paste them directly into GitHub markdown or Notion!
-
-```bash
-govis -format mermaid ./... > architecture.md
-```
-
-### Generate a DOT Graph
-For a deeper, detailed system graph, you can generate a `.dot` file:
-
-```bash
-govis -format dot ./... > graph.dot
-```
-
-### Generate an Interactive HTML Dashboard
-The most powerful way to use Govis locally. This generates a standalone webpage displaying your architecture with drag, drop, and scroll-to-zoom:
-
+### 1. Interactive HTML Dashboard (Codebase Navigation)
+**The Feature:** Generates a stunning, standalone frontend with deep dark-mode UI, legends, and completely draggable SVG pan & zoom canvases.
+**The Problem Solved:** Huge codebases are impossible to view in console or Markdown. Click a node in this dashboard to instantly hyper-link into VS Code!
 ```bash
 govis -format html ./... > dashboard.html
 open dashboard.html
 ```
 
-### JSON Export API
-Need raw structural data to pipe to another platform? 
-
+### 2. Architecture Linter (Clean Architecture Guardrails)
+**The Feature:** Defends architectural boundaries by tracking dependency edges.
+**The Problem Solved:** Stops logic leaking across layers. You can configure Govis to exit with `status 1` if it detects a forbidden map linkage. 
 ```bash
-govis -format json ./... > architecture.json
-```
-
-### Linting Architecture Violtations (Clean Architecture)
-Run a CI check to ensure Handlers (`handler`) do not communicate straight to Database Repositories (`store`):
-
-```bash
+# Ensure Handlers never bypass Business Services to talk to Stores
 govis -vet="handler!store" ./...
 ```
 
-### Focus on a Specific Component
-Filter out all the noise and only map a targeted subset of your architecture (e.g. your `PaymentService`):
-
+### 3. Dead Code Detection
+**The Feature:** Mathematically proves what nodes lack incoming architectural references.
+**The Problem Solved:** Eliminates the guesswork when deleting legacy systems. It tells you immediately if an entire `PaymentRepository` has been orphaned.
 ```bash
-govis -format mermaid -focus="PaymentService" ./... > focus.md
+govis -deadcode ./...
 ```
 
-### Pipe to SVG (Requires Graphviz)
-You can directly convert the DOT mapping into a beautiful SVG graphic:
-
+### 4. Git Diff Architecture Visualization
+**The Feature:** Ingests two AST states and creates a glowing Visual Difference Map. New systems glow Green, deprecated systems burn Red.
+**The Problem Solved:** PR reviews show 400 lines of code changed, but completely fail to convey the massive structural shift introduced.
 ```bash
-govis -format dot ./... | dot -Tsvg > architecture.svg
+# Save main branch state
+govis -format json ./... > old.json
+git checkout my-new-feature
+# View architectural diff
+govis -diff old.json -format html ./... > diff.html
 ```
 
-### Filtering Packages
-If your project is huge, you can filter visualization to a specific sub-package namespace:
-
+### 5. Automated AI Architect Review
+**The Feature:** Instantly serializes the macro-graph to LLM endpoints to request an automated architectural critique.
+**The Problem Solved:** Identifies circular dependencies, coupling issues, and poor API layer boundary separation programmatically.
 ```bash
-govis -format mermaid -filter="internal/api" ./...
+export OPENAI_API_KEY="sk-..."
+govis -ai ./...
 ```
+
+### 6. Microservice Event-Bus Extraction
+**The Feature:** Detects `.Publish("topic")` or `.Subscribe("topic")` signatures in AST execution.
+**The Problem Solved:** Event-driven microservices are functionally invisible to traditional structural parsing. Govis physically draws `KindEvent` nodes displaying exactly what Services drop inputs into which Kafka/RabbitMQ Topics.
+
+### 7. PlanetScale / Vitess Native Mapping
+**The Feature:** Auto-discovers local `vschema.json` topologies and natively annotates `Store` models with shard metadata.
+**The Problem Solved:** Cross-shard data operations are incredibly dangerous. Govis lets distributed systems engineers easily separate Sharded models from Unsharded keyspaces visually.
 
 ---
 
-## 🤖 GitHub Actions Integration
+## 💻 Installation
 
-Govis includes a built-in Dockerfile and GitHub Action `entrypoint.sh` out of the box! You can integrate Govis into your CI/CD pipeline to **automatically comment Mermaid architecture diagrams on Pull Requests**.
+Install Govis directly using standard Go tooling (ensure `GOPATH/bin` is in your environment PATH).
 
-**Example `.github/workflows/govis.yml`**:
-```yaml
-name: Map Go Architecture
-on: [pull_request]
-
-jobs:
-  build-and-map:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Run Govis StructMap
-        uses: zopdev/govis@main
-        with:
-          dir: './...'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```bash
+go install github.com/zopdev/govis/cmd/govis@latest
 ```
 
-## Contributing
-
-Pull requests are always welcome. Let's make backend architectures easier for everyone to understand!
+*(Note: Prior open-source publishing, customize the base `zopdev` github imports to match your namespace!)*
