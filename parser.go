@@ -3,7 +3,6 @@ package structmap
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 	"go/types"
 	"strings"
 
@@ -18,7 +17,8 @@ type ParseOptions struct {
 	Config *GovisConfig
 }
 
-// Parse loads packages and builds the graph
+// Parse loads Go packages from the target directory and builds the
+// full architecture graph through a multi-pass analysis pipeline.
 func Parse(opts ParseOptions) (*Graph, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName |
@@ -36,7 +36,7 @@ func Parse(opts ParseOptions) (*Graph, error) {
 
 	graph := NewGraph()
 
-	// 1. Initial pass: harvest basic structures and funcs
+	// Pass 1: Harvest structs, interfaces, and functions
 	for _, pkg := range pkgs {
 		for _, file := range pkg.Syntax {
 			ast.Inspect(file, func(n ast.Node) bool {
@@ -51,32 +51,24 @@ func Parse(opts ParseOptions) (*Graph, error) {
 		}
 	}
 
-	// 2. Resolve relationships
+	// Pass 2: Resolve structural relationships
 	resolveInterfaces(pkgs, graph)
 	resolveDependencies(graph)
 
-	// 3. API Route Extractions
+	// Pass 3: Framework-level enrichments
 	extractRoutes(pkgs, graph)
-
-	// 4. Vitess Database Topology Enrichment
-	parseVitessSchema(opts.Dir, graph)
-
-	// 5. Detect Publish/Subscribe Event Busses
 	extractEvents(pkgs, graph)
-
-	// 6. Middleware chain detection
 	ExtractMiddleware(pkgs, graph)
-
-	// 7. gRPC / Protobuf detection
 	ExtractGRPC(pkgs, graph)
 
-	// 8. External infrastructure mapping (go.mod)
+	// Pass 4: Infrastructure & external topology
+	parseVitessSchema(opts.Dir, graph)
 	ExtractGoModDeps(opts.Dir, graph)
 
-	// 9. Concurrency pattern detection
+	// Pass 5: Runtime pattern detection
 	DetectConcurrency(pkgs, graph)
 
-	// 10. Shrink visual scope if focused
+	// Pass 6: Scope filtering (always last)
 	if opts.Focus != "" {
 		applyFocus(graph, opts.Focus)
 	}
@@ -84,172 +76,8 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	return graph, nil
 }
 
-func extractRoutes(pkgs []*packages.Package, graph *Graph) {
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Syntax {
-			ast.Inspect(file, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok {
-					return true
-				}
-				
-				method := sel.Sel.Name
-				if method != "GET" && method != "POST" && method != "PUT" && method != "DELETE" && method != "PATCH" {
-					return true
-				}
-
-				if len(call.Args) >= 2 {
-					var pathStr string
-					if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-						pathStr = strings.Trim(lit.Value, "\"")
-					}
-
-					if pathStr != "" {
-						handlerArg := call.Args[len(call.Args)-1]
-						findAndTagHandler(handlerArg, pkg, graph, method, pathStr)
-					}
-				}
-				return true
-			})
-		}
-	}
-}
-
-func extractEvents(pkgs []*packages.Package, graph *Graph) {
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Syntax {
-			var currentCallerID string
-			ast.Inspect(file, func(n ast.Node) bool {
-				// Track the current function or struct we are touring
-				if fn, ok := n.(*ast.FuncDecl); ok {
-					if fn.Recv != nil && len(fn.Recv.List) > 0 {
-						if star, ok := fn.Recv.List[0].Type.(*ast.StarExpr); ok {
-							if ident, ok := star.X.(*ast.Ident); ok {
-								currentCallerID = fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
-							}
-						} else if ident, ok := fn.Recv.List[0].Type.(*ast.Ident); ok {
-							currentCallerID = fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
-						}
-					} else {
-						currentCallerID = fmt.Sprintf("%s.%s", pkg.PkgPath, fn.Name.Name)
-					}
-				}
-
-				call, ok := n.(*ast.CallExpr)
-				if !ok { return true }
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok { return true }
-				
-				method := sel.Sel.Name
-				isEvent := method == "Publish" || method == "Produce" || method == "Emit" || method == "Subscribe" || method == "Consume"
-				
-				if isEvent && len(call.Args) > 0 {
-					var topicStr string
-					if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-						topicStr = strings.Trim(lit.Value, "\"")
-					}
-					
-					if topicStr != "" {
-						busID := "eventbus." + topicStr
-						if _, exists := graph.Nodes[busID]; !exists {
-							graph.AddNode(&Node{
-								ID:      busID,
-								Kind:    KindEvent,
-								Name:    "📢 Topic: " + topicStr,
-								Package: "event",
-							})
-						}
-						
-						// Add missing edge from Caller -> EventTopic
-						if currentCallerID != "" {
-							if _, exists := graph.Nodes[currentCallerID]; exists {
-								if method == "Subscribe" || method == "Consume" {
-									graph.AddEdge(busID, currentCallerID, EdgeDepends)
-								} else {
-									graph.AddEdge(currentCallerID, busID, EdgeDepends)
-								}
-							}
-						}
-					}
-				}
-				return true
-			})
-		}
-	}
-}
-
-func findAndTagHandler(expr ast.Expr, pkg *packages.Package, graph *Graph, method, pathStr string) {
-	switch e := expr.(type) {
-	case *ast.SelectorExpr:
-		if xIdent, ok := e.X.(*ast.Ident); ok {
-			if typObj := pkg.TypesInfo.TypeOf(xIdent); typObj != nil {
-				cleanType := strings.TrimLeft(typObj.String(), "*")
-				if node, exists := graph.Nodes[cleanType]; exists {
-					node.Meta["route"] = fmt.Sprintf("%s %s", method, pathStr)
-				}
-			}
-		}
-	}
-}
-
-func applyFocus(g *Graph, focus string) {
-	keepNodes := make(map[string]bool)
-	lowerFocus := strings.ToLower(focus)
-
-	// Direct matches
-	for id, n := range g.Nodes {
-		if strings.Contains(strings.ToLower(n.Name), lowerFocus) || strings.Contains(strings.ToLower(id), lowerFocus) {
-			keepNodes[id] = true
-		}
-	}
-
-	// 1 degree of connection
-	for _, e := range g.Edges {
-		if keepNodes[e.From] {
-			keepNodes[e.To] = true
-		}
-		if keepNodes[e.To] {
-			keepNodes[e.From] = true
-		}
-	}
-
-	// Filter nodes
-	for id := range g.Nodes {
-		if !keepNodes[id] {
-			delete(g.Nodes, id)
-			// Clean clusters
-			for pkg, ids := range g.Clusters {
-				var newIds []string
-				for _, cid := range ids {
-					if cid != id {
-						newIds = append(newIds, cid)
-					}
-				}
-				if len(newIds) == 0 {
-					delete(g.Clusters, pkg)
-				} else {
-					g.Clusters[pkg] = newIds
-				}
-			}
-		}
-	}
-
-	// Filter edges
-	var newEdges []Edge
-	for _, e := range g.Edges {
-		if keepNodes[e.From] && keepNodes[e.To] {
-			newEdges = append(newEdges, e)
-		}
-	}
-	g.Edges = newEdges
-}
-
+// handleTypeSpec processes a single type declaration (struct or interface).
 func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts ParseOptions) {
-	// Skip mocks and generated tests
 	lowerName := strings.ToLower(t.Name.Name)
 	if strings.Contains(lowerName, "mock") || strings.Contains(lowerName, "test") {
 		return
@@ -272,11 +100,11 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 	switch structOrIface := t.Type.(type) {
 	case *ast.StructType:
 		node.Kind = KindStruct
-		
+
 		isService := strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase")
 		isStore := strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao")
 		isModel := strings.HasSuffix(lowerName, "model")
-		
+
 		if opts.Config != nil {
 			if opts.Config.ServiceRegex != nil {
 				isService = opts.Config.ServiceRegex.MatchString(t.Name.Name)
@@ -315,9 +143,7 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 			}
 
 			if len(field.Names) == 0 {
-				// Embedded field
 				node.Fields = append(node.Fields, Field{Name: typStr, Type: typStr, Tag: tag})
-				// Create embeds edge
 				graph.AddEdge(node.ID, typStr, EdgeEmbeds)
 			} else {
 				for _, name := range field.Names {
@@ -325,7 +151,7 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 				}
 			}
 		}
-		
+
 		if hasDBTags && node.Kind == KindStruct {
 			node.Kind = KindModel
 		}
@@ -342,7 +168,6 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 			if len(method.Names) > 0 {
 				node.Methods = append(node.Methods, method.Names[0].Name)
 			} else if embType := pkg.TypesInfo.TypeOf(method.Type); embType != nil {
-				// Embedded interface
 				graph.AddEdge(node.ID, embType.String(), EdgeEmbeds)
 			}
 		}
@@ -353,9 +178,10 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 	graph.AddNode(node)
 }
 
+// handleFuncDecl processes a function declaration, detecting HTTP handlers
+// and constructor patterns.
 func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 	if fn.Recv != nil {
-		// It's a method attached to a struct pointer/value
 		recvType := fn.Recv.List[0].Type
 		if star, ok := recvType.(*ast.StarExpr); ok {
 			recvType = star.X
@@ -364,7 +190,6 @@ func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 			id := fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
 			if node, ok := graph.Nodes[id]; ok {
 				node.Methods = append(node.Methods, fn.Name.Name)
-				// Check if it's an HTTP handler
 				if isHTTPHandler(fn, pkg.TypesInfo) {
 					node.Kind = KindHandler
 					node.Meta["http_method"] = fn.Name.Name
@@ -372,7 +197,6 @@ func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 			}
 		}
 	} else {
-		// Package block function
 		id := fmt.Sprintf("%s.%s", pkg.PkgPath, fn.Name.Name)
 		node := &Node{
 			ID:      id,
@@ -396,12 +220,12 @@ func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 	}
 }
 
+// isHTTPHandler detects HTTP handler functions for net/http, Gin, Echo, and Fiber.
 func isHTTPHandler(fn *ast.FuncDecl, info *types.Info) bool {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 {
 		return false
 	}
 
-	// Single parameter handlers (Gin, Echo, Fiber)
 	if len(fn.Type.Params.List) == 1 {
 		t0 := info.TypeOf(fn.Type.Params.List[0].Type)
 		if t0 != nil {
@@ -414,7 +238,6 @@ func isHTTPHandler(fn *ast.FuncDecl, info *types.Info) bool {
 		}
 	}
 
-	// Two parameter handlers (net/http standard)
 	if len(fn.Type.Params.List) == 2 {
 		t0 := info.TypeOf(fn.Type.Params.List[0].Type)
 		t1 := info.TypeOf(fn.Type.Params.List[1].Type)
@@ -443,7 +266,6 @@ func extractDependencies(fn *ast.FuncDecl, info *types.Info, node *Node) {
 }
 
 func resolveInterfaces(pkgs []*packages.Package, graph *Graph) {
-	// Pre-collect interfaces and structs for lookup
 	structTypes := make(map[string]types.Type)
 	ifaceTypes := make(map[string]*types.Interface)
 
@@ -454,7 +276,7 @@ func resolveInterfaces(pkgs []*packages.Package, graph *Graph) {
 			if t, ok := obj.(*types.TypeName); ok {
 				if typ, ok := t.Type().Underlying().(*types.Struct); ok {
 					structTypes[fmt.Sprintf("%s.%s", p.PkgPath, name)] = t.Type()
-					_ = typ // keep compiler happy
+					_ = typ
 				} else if iface, ok := t.Type().Underlying().(*types.Interface); ok {
 					ifaceTypes[fmt.Sprintf("%s.%s", p.PkgPath, name)] = iface
 				}
@@ -462,17 +284,13 @@ func resolveInterfaces(pkgs []*packages.Package, graph *Graph) {
 		}
 	}
 
-	// Calculate implementations
 	for sID, sTyp := range structTypes {
 		pTyp := types.NewPointer(sTyp)
 		for iID, iTyp := range ifaceTypes {
-			// Ignore `interface{}`
 			if iTyp.NumMethods() == 0 {
 				continue
 			}
-
 			if types.Implements(sTyp, iTyp) || types.Implements(pTyp, iTyp) {
-				// We only add edges if both are in our graph
 				if _, sok := graph.Nodes[sID]; sok {
 					if _, iok := graph.Nodes[iID]; iok {
 						graph.AddEdge(sID, iID, EdgeImplements)
@@ -487,7 +305,6 @@ func resolveDependencies(graph *Graph) {
 	for _, n := range graph.Nodes {
 		if deps, ok := n.Meta["deps"]; ok && deps != "" {
 			for _, d := range strings.Split(deps, ",") {
-				// Simple heuristic: if the dependency is a pointer or interface that matches another node
 				cleanDep := strings.TrimLeft(d, "*")
 				if _, targetExists := graph.Nodes[cleanDep]; targetExists {
 					graph.AddEdge(n.ID, cleanDep, EdgeDepends)
