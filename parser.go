@@ -3,6 +3,7 @@ package structmap
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"strings"
 
@@ -52,7 +53,116 @@ func Parse(opts Options) (*Graph, error) {
 	resolveInterfaces(pkgs, graph)
 	resolveDependencies(graph)
 
+	// 3. API Route Extractions
+	extractRoutes(pkgs, graph)
+
+	// 4. Shrink visual scope if focused
+	if opts.Focus != "" {
+		applyFocus(graph, opts.Focus)
+	}
+
 	return graph, nil
+}
+
+func extractRoutes(pkgs []*packages.Package, graph *Graph) {
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				
+				method := sel.Sel.Name
+				if method != "GET" && method != "POST" && method != "PUT" && method != "DELETE" && method != "PATCH" {
+					return true
+				}
+
+				if len(call.Args) >= 2 {
+					var pathStr string
+					if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+						pathStr = strings.Trim(lit.Value, "\"")
+					}
+
+					if pathStr != "" {
+						handlerArg := call.Args[len(call.Args)-1]
+						findAndTagHandler(handlerArg, pkg, graph, method, pathStr)
+					}
+				}
+				return true
+			})
+		}
+	}
+}
+
+func findAndTagHandler(expr ast.Expr, pkg *packages.Package, graph *Graph, method, pathStr string) {
+	switch e := expr.(type) {
+	case *ast.SelectorExpr:
+		if xIdent, ok := e.X.(*ast.Ident); ok {
+			if typObj := pkg.TypesInfo.TypeOf(xIdent); typObj != nil {
+				cleanType := strings.TrimLeft(typObj.String(), "*")
+				if node, exists := graph.Nodes[cleanType]; exists {
+					node.Meta["route"] = fmt.Sprintf("%s %s", method, pathStr)
+				}
+			}
+		}
+	}
+}
+
+func applyFocus(g *Graph, focus string) {
+	keepNodes := make(map[string]bool)
+	lowerFocus := strings.ToLower(focus)
+
+	// Direct matches
+	for id, n := range g.Nodes {
+		if strings.Contains(strings.ToLower(n.Name), lowerFocus) || strings.Contains(strings.ToLower(id), lowerFocus) {
+			keepNodes[id] = true
+		}
+	}
+
+	// 1 degree of connection
+	for _, e := range g.Edges {
+		if keepNodes[e.From] {
+			keepNodes[e.To] = true
+		}
+		if keepNodes[e.To] {
+			keepNodes[e.From] = true
+		}
+	}
+
+	// Filter nodes
+	for id := range g.Nodes {
+		if !keepNodes[id] {
+			delete(g.Nodes, id)
+			// Clean clusters
+			for pkg, ids := range g.Clusters {
+				var newIds []string
+				for _, cid := range ids {
+					if cid != id {
+						newIds = append(newIds, cid)
+					}
+				}
+				if len(newIds) == 0 {
+					delete(g.Clusters, pkg)
+				} else {
+					g.Clusters[pkg] = newIds
+				}
+			}
+		}
+	}
+
+	// Filter edges
+	var newEdges []Edge
+	for _, e := range g.Edges {
+		if keepNodes[e.From] && keepNodes[e.To] {
+			newEdges = append(newEdges, e)
+		}
+	}
+	g.Edges = newEdges
 }
 
 func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph) {

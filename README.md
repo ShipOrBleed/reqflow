@@ -22,6 +22,17 @@ Whether you've just inherited a massive legacy codebase or want to automatically
   - **Mermaid.js** (Perfect for Markdown files and GitHub PRs)
   - **DOT** (Perfect for Graphviz parsing)
   - **SVG** (Via Graphviz DOT piping)
+  - **HTML Interactive Dashboard:** Directly generates a standalone web page with zoom, panning, and legend.
+  - **JSON Data Export:** For building your own UI, pipelining, or integrations.
+
+### 🛡️ Architecture Linter (`govis vet`)
+Govis acts as a strict architecture guardrail. You can pass a rule like `-vet="handler!store"` and Govis will analyze your dependency structures. If any Junior Dev tries to import a Database Store directly into an HTTP Handler, it will print a `🚨 VIOLATION` error and exit with status 1, failing your CI/CD!
+
+### 🔭 The Focus Feature
+Got a massive 100,000-line monolith? Govis has a `--focus` flag! Provide the name of a `Service`, `Model`, or `Controller`, and Govis will strip away the noise—giving you an isolated, targeted map of just that specific component and its immediate dependencies.
+
+### 🛣️ API Route Extraction
+Govis's AST parser doesn't just find handlers—it detects your literal `router.GET("/api/v1/users")` definitions and automatically stamps those textual URLs right onto your generated visual nodes!
 
 ---
 
@@ -53,6 +64,35 @@ For a deeper, detailed system graph, you can generate a `.dot` file:
 
 ```bash
 govis -format dot ./... > graph.dot
+```
+
+### Generate an Interactive HTML Dashboard
+The most powerful way to use Govis locally. This generates a standalone webpage displaying your architecture with drag, drop, and scroll-to-zoom:
+
+```bash
+govis -format html ./... > dashboard.html
+open dashboard.html
+```
+
+### JSON Export API
+Need raw structural data to pipe to another platform? 
+
+```bash
+govis -format json ./... > architecture.json
+```
+
+### Linting Architecture Violtations (Clean Architecture)
+Run a CI check to ensure Handlers (`handler`) do not communicate straight to Database Repositories (`store`):
+
+```bash
+govis -vet="handler!store" ./...
+```
+
+### Focus on a Specific Component
+Filter out all the noise and only map a targeted subset of your architecture (e.g. your `PaymentService`):
+
+```bash
+govis -format mermaid -focus="PaymentService" ./... > focus.md
 ```
 
 ### Pipe to SVG (Requires Graphviz)

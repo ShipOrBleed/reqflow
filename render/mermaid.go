@@ -90,6 +90,10 @@ func (m *MermaidRenderer) renderNode(w io.Writer, n *structmap.Node) {
 		fmt.Fprintln(w, "      <<function>>")
 	}
 
+	if route, ok := n.Meta["route"]; ok {
+		fmt.Fprintf(w, "      +Route() %s\n", route)
+	}
+
 	for _, f := range n.Fields {
 		fmt.Fprintf(w, "      +%s %s\n", f.Name, sanitizeTypeName(f.Type))
 	}
