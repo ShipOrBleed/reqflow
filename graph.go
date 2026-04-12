@@ -10,6 +10,7 @@ const (
 	KindStore     NodeKind = "store"   // DB layer / Repository
 	KindModel     NodeKind = "model"   // DB entity / Model
 	KindService   NodeKind = "service" // Business logic
+	KindEvent     NodeKind = "event"   // Event Bus (Kafka/Rabbit)
 )
 
 type Node struct {

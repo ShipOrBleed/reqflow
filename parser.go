@@ -59,7 +59,10 @@ func Parse(opts Options) (*Graph, error) {
 	// 4. Vitess Database Topology Enrichment
 	parseVitessSchema(opts.Dir, graph)
 
-	// 5. Shrink visual scope if focused
+	// 5. Detect Publish/Subscribe Event Busses
+	extractEvents(pkgs, graph)
+
+	// 6. Shrink visual scope if focused
 	if opts.Focus != "" {
 		applyFocus(graph, opts.Focus)
 	}
@@ -94,6 +97,42 @@ func extractRoutes(pkgs []*packages.Package, graph *Graph) {
 					if pathStr != "" {
 						handlerArg := call.Args[len(call.Args)-1]
 						findAndTagHandler(handlerArg, pkg, graph, method, pathStr)
+					}
+				}
+				return true
+			})
+		}
+	}
+}
+
+func extractEvents(pkgs []*packages.Package, graph *Graph) {
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok { return true }
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok { return true }
+				
+				method := sel.Sel.Name
+				isEvent := method == "Publish" || method == "Produce" || method == "Emit" || method == "Subscribe" || method == "Consume"
+				
+				if isEvent && len(call.Args) > 0 {
+					var topicStr string
+					if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+						topicStr = strings.Trim(lit.Value, "\"")
+					}
+					
+					if topicStr != "" {
+						busID := "eventbus." + topicStr
+						if _, exists := graph.Nodes[busID]; !exists {
+							graph.AddNode(&Node{
+								ID:      busID,
+								Kind:    KindEvent,
+								Name:    "📢 Topic: " + topicStr,
+								Package: "event",
+							})
+						}
 					}
 				}
 				return true

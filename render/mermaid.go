@@ -53,8 +53,19 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "  classDef service fill:#cce5ff,stroke:#007bff,color:#004085")
 	fmt.Fprintln(w, "  classDef store fill:#ffeeba,stroke:#ffc107,color:#856404")
 	fmt.Fprintln(w, "  classDef model fill:#f8d7da,stroke:#dc3545,color:#721c24")
+	fmt.Fprintln(w, "  classDef event fill:#e2e3e5,stroke:#343a40,stroke-dasharray: 5 5,color:#343a40")
+	fmt.Fprintln(w, "  classDef diffnew fill:#d4edda,stroke:#28a745,color:#155724,stroke-width:4px,stroke-dasharray: 5 5")
+	fmt.Fprintln(w, "  classDef diffdel fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:4px,stroke-dasharray: 5 5")
 	
 	for _, node := range g.Nodes {
+		if node.Meta["diff"] == "new" {
+			fmt.Fprintf(w, "  class %s diffnew\n", sanitizeID(node.ID))
+			continue
+		} else if node.Meta["diff"] == "deleted" {
+			fmt.Fprintf(w, "  class %s diffdel\n", sanitizeID(node.ID))
+			continue
+		}
+
 		switch node.Kind {
 		case structmap.KindHandler:
 			fmt.Fprintf(w, "  class %s handler\n", sanitizeID(node.ID))
@@ -64,6 +75,8 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 			fmt.Fprintf(w, "  class %s store\n", sanitizeID(node.ID))
 		case structmap.KindModel:
 			fmt.Fprintf(w, "  class %s model\n", sanitizeID(node.ID))
+		case structmap.KindEvent:
+			fmt.Fprintf(w, "  class %s event\n", sanitizeID(node.ID))
 		}
 		
 		// 🔗 IDE Deep Links (Click-To-Code)

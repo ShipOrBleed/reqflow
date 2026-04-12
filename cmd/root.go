@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -16,6 +18,9 @@ func Execute() {
 	filter := flag.String("filter", "", "Filter by package path")
 	focus := flag.String("focus", "", "Focus strictly on a specific struct, interface, or service name")
 	vet := flag.String("vet", "", "Lint architecture rules (e.g. 'handler!store' means handler cannot depend on store)")
+	deadcode := flag.Bool("deadcode", false, "Detect and print potentially dead/unused architectural nodes (orphans)")
+	diff := flag.String("diff", "", "Compare current code against an older JSON architecture export (filepath)")
+	aiReview := flag.Bool("ai", false, "Analyze architecture using AI (Requires OPENAI_API_KEY env var)")
 	
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
@@ -73,6 +78,89 @@ func Execute() {
 		} else {
 			fmt.Fprintf(os.Stderr, "Invalid vet rule format. Use 'from!to' (e.g., 'handler!store')\n")
 			os.Exit(1)
+		}
+	}
+
+	// 🚨 V2 Feature: Dead Code Detection
+	if *deadcode {
+		hasIncoming := make(map[string]bool)
+		for _, e := range graph.Edges {
+			hasIncoming[e.To] = true
+		}
+		
+		fmt.Fprintf(os.Stderr, "\n💀 DEAD CODE / ORPHAN DETECTION:\n")
+		orphansFound := 0
+		for id, n := range graph.Nodes {
+			if n.Kind != structmap.KindHandler && n.Kind != structmap.KindFunc && n.Kind != structmap.KindEvent {
+				if !hasIncoming[id] {
+					fmt.Fprintf(os.Stderr, "  - Orphaned %s: %s (Location: %s:%d)\n", n.Kind, n.Name, n.File, n.Line)
+					orphansFound++
+				}
+			}
+		}
+		if orphansFound == 0 {
+			fmt.Fprintf(os.Stderr, "  ✅ No orphaned components found!\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "  Total orphans found: %d\n", orphansFound)
+		}
+	}
+
+	// 🚨 V2 Feature: Architecture Diffing
+	if *diff != "" {
+		bytes, err := os.ReadFile(*diff)
+		if err == nil {
+			var oldGraph structmap.Graph
+			if err := json.Unmarshal(bytes, &oldGraph); err == nil {
+				// Identify new nodes
+				for id, n := range graph.Nodes {
+					if _, ok := oldGraph.Nodes[id]; !ok {
+						n.Meta["diff"] = "new"
+					}
+				}
+				// Identify deleted nodes
+				for id, oldN := range oldGraph.Nodes {
+					if _, ok := graph.Nodes[id]; !ok {
+						if oldN.Meta == nil {
+							oldN.Meta = make(map[string]string)
+						}
+						oldN.Meta["diff"] = "deleted"
+						graph.AddNode(oldN) // Add purely for visualization
+					}
+				}
+				fmt.Fprintf(os.Stderr, "✅ Injected architecture diff comparisons against %s.\n", *diff)
+			}
+		}
+	}
+
+	// 🚨 V2 Feature: Native AI Code Reviewer
+	if *aiReview {
+		apiKey := os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			fmt.Fprintln(os.Stderr, "❌ Please set OPENAI_API_KEY environment variable to use -ai.")
+		} else {
+			fmt.Fprintf(os.Stderr, "🤖 Analyzing Architecture with AI...\n")
+			graphJSON, _ := json.Marshal(graph)
+			prompt := "You are a Senior Go Software Architect. Review the following JSON architecture graph of a codebase. Identify any tight coupling, missing layers (like a handler calling a database store), and structural flaws. Provide 3 direct bullet points of specific code review advice. JSON Data:\n" + string(graphJSON)
+			reqBody := fmt.Sprintf(`{"model": "gpt-4o", "messages": [{"role": "user", "content": %q}], "max_tokens": 500}`, prompt)
+			req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(reqBody))
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+			req.Header.Set("Content-Type", "application/json")
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err == nil {
+				defer resp.Body.Close()
+				var resStruct struct {
+					Choices []struct {
+						Message struct {
+							Content string `json:"content"`
+						} `json:"message"`
+					} `json:"choices"`
+				}
+				json.NewDecoder(resp.Body).Decode(&resStruct)
+				if len(resStruct.Choices) > 0 {
+					fmt.Printf("\n--- 🤖 AI ARCHITECT FEEDBACK ---\n%s\n--------------------------------\n", resStruct.Choices[0].Message.Content)
+				}
+			}
 		}
 	}
 
