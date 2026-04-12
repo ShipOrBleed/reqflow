@@ -70,12 +70,18 @@ func (d *DOTRenderer) renderNode(w io.Writer, n *structmap.Node) {
 	}
 
 	lines := []string{}
-	// Just the name and interface / handler marker
 	title := n.Name
-	if n.Kind == structmap.KindInterface {
+	switch n.Kind {
+	case structmap.KindInterface:
 		title = fmt.Sprintf("«interface»\\n%s", n.Name)
-	} else if n.Kind == structmap.KindHandler {
+	case structmap.KindHandler:
 		title = fmt.Sprintf("«handler»\\n%s", n.Name)
+	case structmap.KindService:
+		title = fmt.Sprintf("«service»\\n%s", n.Name)
+	case structmap.KindStore:
+		title = fmt.Sprintf("«store»\\n%s", n.Name)
+	case structmap.KindModel:
+		title = fmt.Sprintf("«model»\\n%s", n.Name)
 	}
 
 	lines = append(lines, title)
@@ -93,5 +99,19 @@ func (d *DOTRenderer) renderNode(w io.Writer, n *structmap.Node) {
 	}
 
 	label := fmt.Sprintf("{%s|%s|%s}", lines[0], lines[1], lines[2])
-	fmt.Fprintf(w, "    %s [label=\"%s\"]\n", nodeID, label)
+	
+	// Add color filling for node rendering
+	colorAttr := `fillcolor="white", style="filled"`
+	switch n.Kind {
+	case structmap.KindHandler:
+		colorAttr = `fillcolor="#d4edda", style="filled", color="#155724"`
+	case structmap.KindService:
+		colorAttr = `fillcolor="#cce5ff", style="filled", color="#004085"`
+	case structmap.KindStore:
+		colorAttr = `fillcolor="#ffeeba", style="filled", color="#856404"`
+	case structmap.KindModel:
+		colorAttr = `fillcolor="#f8d7da", style="filled", color="#721c24"`
+	}
+
+	fmt.Fprintf(w, "    %s [label=\"%s\", %s]\n", nodeID, label, colorAttr)
 }

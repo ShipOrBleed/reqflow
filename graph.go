@@ -7,7 +7,9 @@ const (
 	KindInterface NodeKind = "interface"
 	KindFunc      NodeKind = "func"
 	KindHandler   NodeKind = "handler" // HTTP handler
-	KindStore     NodeKind = "store"   // DB layer
+	KindStore     NodeKind = "store"   // DB layer / Repository
+	KindModel     NodeKind = "model"   // DB entity / Model
+	KindService   NodeKind = "service" // Business logic
 )
 
 type Node struct {

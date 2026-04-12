@@ -47,41 +47,56 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		}
 	}
 
+	// Apply styling colors!
+	fmt.Fprintln(w, "\n  %% Color Coding Layers")
+	fmt.Fprintln(w, "  classDef handler fill:#d4edda,stroke:#28a745,color:#155724")
+	fmt.Fprintln(w, "  classDef service fill:#cce5ff,stroke:#007bff,color:#004085")
+	fmt.Fprintln(w, "  classDef store fill:#ffeeba,stroke:#ffc107,color:#856404")
+	fmt.Fprintln(w, "  classDef model fill:#f8d7da,stroke:#dc3545,color:#721c24")
+	
+	for _, node := range g.Nodes {
+		switch node.Kind {
+		case structmap.KindHandler:
+			fmt.Fprintf(w, "  class %s handler\n", sanitizeID(node.ID))
+		case structmap.KindService:
+			fmt.Fprintf(w, "  class %s service\n", sanitizeID(node.ID))
+		case structmap.KindStore:
+			fmt.Fprintf(w, "  class %s store\n", sanitizeID(node.ID))
+		case structmap.KindModel:
+			fmt.Fprintf(w, "  class %s model\n", sanitizeID(node.ID))
+		}
+	}
+
 	return nil
 }
 
 func (m *MermaidRenderer) renderNode(w io.Writer, n *structmap.Node) {
 	nodeID := sanitizeID(n.ID)
 	
+	fmt.Fprintf(w, "    class %s {\n", nodeID)
+
 	switch n.Kind {
-	case structmap.KindStruct:
-		fmt.Fprintf(w, "    class %s {\n", nodeID)
-		for _, f := range n.Fields {
-			fmt.Fprintf(w, "      +%s %s\n", f.Name, sanitizeTypeName(f.Type))
-		}
-		for _, m := range n.Methods {
-			fmt.Fprintf(w, "      +%s()\n", m)
-		}
-		fmt.Fprintln(w, "    }")
 	case structmap.KindInterface:
-		fmt.Fprintf(w, "    class %s {\n", nodeID)
 		fmt.Fprintln(w, "      <<interface>>")
-		for _, m := range n.Methods {
-			fmt.Fprintf(w, "      +%s()\n", m)
-		}
-		fmt.Fprintln(w, "    }")
 	case structmap.KindHandler:
-		fmt.Fprintf(w, "    class %s {\n", nodeID)
 		fmt.Fprintln(w, "      <<handler>>")
-		for _, m := range n.Methods {
-			fmt.Fprintf(w, "      +%s()\n", m)
-		}
-		fmt.Fprintln(w, "    }")
+	case structmap.KindService:
+		fmt.Fprintln(w, "      <<service>>")
+	case structmap.KindStore:
+		fmt.Fprintln(w, "      <<store>>")
+	case structmap.KindModel:
+		fmt.Fprintln(w, "      <<model>>")
 	case structmap.KindFunc:
-		fmt.Fprintf(w, "    class %s {\n", nodeID)
 		fmt.Fprintln(w, "      <<function>>")
-		fmt.Fprintln(w, "    }")
 	}
+
+	for _, f := range n.Fields {
+		fmt.Fprintf(w, "      +%s %s\n", f.Name, sanitizeTypeName(f.Type))
+	}
+	for _, m := range n.Methods {
+		fmt.Fprintf(w, "      +%s()\n", m)
+	}
+	fmt.Fprintln(w, "    }")
 }
 
 func sanitizeID(id string) string {

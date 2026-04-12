@@ -56,6 +56,12 @@ func Parse(opts Options) (*Graph, error) {
 }
 
 func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph) {
+	// Skip mocks and generated tests
+	lowerName := strings.ToLower(t.Name.Name)
+	if strings.Contains(lowerName, "mock") || strings.Contains(lowerName, "test") {
+		return
+	}
+
 	obj := pkg.TypesInfo.Defs[t.Name]
 	if obj == nil {
 		return
@@ -73,14 +79,30 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph) {
 	switch structOrIface := t.Type.(type) {
 	case *ast.StructType:
 		node.Kind = KindStruct
+		
+		if strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao") {
+			node.Kind = KindStore
+		} else if strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase") {
+			node.Kind = KindService
+		} else if strings.HasSuffix(lowerName, "model") {
+			node.Kind = KindModel
+		}
+
+		hasDBTags := false
 		for _, field := range structOrIface.Fields.List {
 			tag := ""
 			if field.Tag != nil {
 				tag = field.Tag.Value
+				if strings.Contains(tag, `gorm:`) || strings.Contains(tag, `db:`) || strings.Contains(tag, `bson:`) || strings.Contains(tag, `json:`) {
+					hasDBTags = true
+				}
 			}
 			typStr := ""
 			if typObj := pkg.TypesInfo.TypeOf(field.Type); typObj != nil {
 				typStr = typObj.String()
+				if strings.Contains(typStr, "gorm.Model") {
+					hasDBTags = true
+				}
 			}
 
 			if len(field.Names) == 0 {
@@ -94,8 +116,19 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph) {
 				}
 			}
 		}
+		
+		if hasDBTags && node.Kind == KindStruct {
+			node.Kind = KindModel
+		}
+
 	case *ast.InterfaceType:
 		node.Kind = KindInterface
+		if strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao") {
+			node.Kind = KindStore
+		} else if strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase") {
+			node.Kind = KindService
+		}
+
 		for _, method := range structOrIface.Methods.List {
 			if len(method.Names) > 0 {
 				node.Methods = append(node.Methods, method.Names[0].Name)
