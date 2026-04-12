@@ -16,19 +16,26 @@ Whether you've inherited a chaotic massive codebase and need to find the dead co
 
 ## 🚀 Features & Usage
 
-### 1. Interactive HTML Dashboard (Codebase Navigation)
-**The Feature:** Generates a stunning, standalone frontend with deep dark-mode UI, legends, and completely draggable SVG pan & zoom canvases.
-**The Problem Solved:** Huge codebases are impossible to view in console or Markdown. Click a node in this dashboard to instantly hyper-link into VS Code!
+### 1. Live Interactive Server Daemon (`-serve`)
+**The Feature:** Govis boots a lightweight Go HTTP server hosting your interface. Every time you refresh Chrome, it re-parses your entire codebase in milliseconds.
+**The Problem Solved:** Eliminates endless terminal reloading during massive refactoring sprints. Just put `localhost:8080` on your second monitor.
 ```bash
-govis -format html ./... > dashboard.html
-open dashboard.html
+govis -serve=":8080" ./...
+# Visit http://localhost:8080 
 ```
 
-### 2. Architecture Linter (Clean Architecture Guardrails)
-**The Feature:** Defends architectural boundaries by tracking dependency edges.
-**The Problem Solved:** Stops logic leaking across layers. You can configure Govis to exit with `status 1` if it detects a forbidden map linkage. 
+### 2. Architecture Linter & Config (`.govis.yml`)
+**The Feature:** Committable `.govis.yml` definitions that apply Regex (DDD Hexagonal logic) domain enforcement, and command-line `-vet` tracking.
+**The Problem Solved:** Teams shouldn't run massive CLI commands manually. Create a `.govis.yml`:
+```yaml
+linter:
+  vet_rules: ["handler!store", "route!model"]
+parser:
+  domain_naming:
+    service_match: ".*(Service|UseCase|Manager)$"
+```
+Or execute natively via CLI to exit 1 to fail PR CI pipelines if bad coupling occurs:
 ```bash
-# Ensure Handlers never bypass Business Services to talk to Stores
 govis -vet="handler!store" ./...
 ```
 

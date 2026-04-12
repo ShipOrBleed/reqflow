@@ -15,6 +15,7 @@ import (
 func Execute() {
 	format := flag.String("format", "mermaid", "Output format: mermaid, dot, html, json, svg")
 	out := flag.String("out", "", "Output file (default: stdout)")
+	serve := flag.String("serve", "", "Start a live HTTP visualization server on this port (e.g., ':8080')")
 	filter := flag.String("filter", "", "Filter by package path")
 	focus := flag.String("focus", "", "Focus strictly on a specific struct, interface, or service name")
 	vet := flag.String("vet", "", "Lint architecture rules (e.g. 'handler!store' means handler cannot depend on store)")
@@ -178,6 +179,32 @@ func Execute() {
 				}
 			}
 		}
+	}
+
+	// 🚨 V2 Feature: Live Web Server Daemon
+	if *serve != "" {
+		fmt.Fprintf(os.Stderr, "\n🚀  Govis is LIVE! Watching codebase.\n    Open: http://localhost%s\n\n", *serve)
+		
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// Re-parse the AST continuously on every browser refresh!
+			liveGraph, err := structmap.Parse(opts)
+			if err != nil {
+				fmt.Fprintf(w, "<html><body><h1>AST Parsing Error: %v</h1></body></html>", err)
+				return
+			}
+			
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			renderer := &render.HTMLRenderer{}
+			if err := renderer.Render(liveGraph, w); err != nil {
+				fmt.Fprintf(w, "Internal rendering error: %v", err)
+			}
+		})
+		
+		if err := http.ListenAndServe(*serve, nil); err != nil {
+			fmt.Fprintf(os.Stderr, "Error automatically binding server to %s: %v\n", *serve, err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	var r render.Renderer
