@@ -65,6 +65,13 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		case structmap.KindModel:
 			fmt.Fprintf(w, "  class %s model\n", sanitizeID(node.ID))
 		}
+		
+		// 🔗 IDE Deep Links (Click-To-Code)
+		if node.File != "" && node.Line > 0 {
+			// Generate direct vscode file link
+			link := fmt.Sprintf("vscode://file%s:%d", node.File, node.Line)
+			fmt.Fprintf(w, "  click %s href \"%s\" \"Open in VSCode\"\n", sanitizeID(node.ID), link)
+		}
 	}
 
 	return nil

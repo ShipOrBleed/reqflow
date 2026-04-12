@@ -79,7 +79,8 @@ func (h *HTMLRenderer) Render(g *structmap.Graph, w io.Writer) error {
       mermaid.initialize({ 
           startOnLoad: true, 
           maxTextSize: 900000,
-          theme: 'dark' // Gorgeous dark mode
+          theme: 'dark', // Gorgeous dark mode
+          securityLevel: 'loose' // Vital to allow our vscode:// custom URI schemes!
       });
       
       // Delay initialization of SVG pan-zoom until Mermaid injects the literal SVG node
