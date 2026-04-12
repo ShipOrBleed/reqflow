@@ -10,14 +10,16 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// Options allows configuring the parser
-type Options struct {
+// ParseOptions allows configuring the parser
+type ParseOptions struct {
 	Dir    string
 	Filter string
+	Focus  string
+	Config *GovisConfig
 }
 
 // Parse loads packages and builds the graph
-func Parse(opts Options) (*Graph, error) {
+func Parse(opts ParseOptions) (*Graph, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName |
 			packages.NeedSyntax |
@@ -40,7 +42,7 @@ func Parse(opts Options) (*Graph, error) {
 			ast.Inspect(file, func(n ast.Node) bool {
 				switch t := n.(type) {
 				case *ast.TypeSpec:
-					handleTypeSpec(t, pkg, graph)
+					handleTypeSpec(t, pkg, graph, opts)
 				case *ast.FuncDecl:
 					handleFuncDecl(t, pkg, graph)
 				}
@@ -234,7 +236,7 @@ func applyFocus(g *Graph, focus string) {
 	g.Edges = newEdges
 }
 
-func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph) {
+func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts ParseOptions) {
 	// Skip mocks and generated tests
 	lowerName := strings.ToLower(t.Name.Name)
 	if strings.Contains(lowerName, "mock") || strings.Contains(lowerName, "test") {
@@ -259,11 +261,27 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph) {
 	case *ast.StructType:
 		node.Kind = KindStruct
 		
-		if strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao") {
+		isService := strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase")
+		isStore := strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao")
+		isModel := strings.HasSuffix(lowerName, "model")
+		
+		if opts.Config != nil {
+			if opts.Config.ServiceRegex != nil {
+				isService = opts.Config.ServiceRegex.MatchString(t.Name.Name)
+			}
+			if opts.Config.StoreRegex != nil {
+				isStore = opts.Config.StoreRegex.MatchString(t.Name.Name)
+			}
+			if opts.Config.ModelRegex != nil {
+				isModel = opts.Config.ModelRegex.MatchString(t.Name.Name)
+			}
+		}
+
+		if isStore {
 			node.Kind = KindStore
-		} else if strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase") {
+		} else if isService {
 			node.Kind = KindService
-		} else if strings.HasSuffix(lowerName, "model") {
+		} else if isModel {
 			node.Kind = KindModel
 		}
 

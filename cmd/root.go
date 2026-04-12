@@ -34,10 +34,18 @@ func Execute() {
 		dir = flag.Arg(0)
 	}
 
-	opts := structmap.Options{
+	// 💼 Load Enterprise .govis.yml
+	var loadedConfig *structmap.GovisConfig
+	if cfg, err := structmap.LoadConfig(".govis.yml"); err == nil {
+		loadedConfig = cfg
+		fmt.Fprintf(os.Stderr, "⚙️  Loaded enterprise configuration from .govis.yml\n")
+	}
+
+	opts := structmap.ParseOptions{
 		Dir:    dir,
 		Filter: *filter,
 		Focus:  *focus,
+		Config: loadedConfig,
 	}
 
 	graph, err := structmap.Parse(opts)
@@ -46,38 +54,46 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	// 🚨 Architecture Linter Feature
+	// Aggregate Rules
+	var activeVetRules []string
 	if *vet != "" {
-		parts := strings.Split(*vet, "!")
-		if len(parts) == 2 {
-			fromKind := structmap.NodeKind(parts[0])
-			toKind := structmap.NodeKind(parts[1])
-			
-			violations := 0
-			for _, edge := range graph.Edges {
-				fromNode := graph.Nodes[edge.From]
-				toNode := graph.Nodes[edge.To]
-				if fromNode != nil && toNode != nil {
-					if fromNode.Kind == fromKind && toNode.Kind == toKind {
-						fmt.Fprintf(os.Stderr, "🚨 ARCHITECTURE VIOLATION: '%s' (%s) directly depends on '%s' (%s)!\n", fromNode.Name, fromNode.Kind, toNode.Name, toNode.Kind)
-						violations++
+		activeVetRules = strings.Split(*vet, ",")
+	}
+	if loadedConfig != nil && len(loadedConfig.Linter.VetRules) > 0 {
+		activeVetRules = append(activeVetRules, loadedConfig.Linter.VetRules...)
+	}
+
+	// 🚨 Architecture Linter Feature
+	if len(activeVetRules) > 0 {
+		violations := 0
+		for _, rule := range activeVetRules {
+			parts := strings.Split(rule, "!")
+			if len(parts) == 2 {
+				fromKind := structmap.NodeKind(parts[0])
+				toKind := structmap.NodeKind(parts[1])
+				
+				for _, edge := range graph.Edges {
+					fromNode := graph.Nodes[edge.From]
+					toNode := graph.Nodes[edge.To]
+					if fromNode != nil && toNode != nil {
+						if fromNode.Kind == fromKind && toNode.Kind == toKind {
+							fmt.Fprintf(os.Stderr, "🚨 RULE VIOLATION [%s!%s]: '%s' directly depends on '%s'!\n", string(fromKind), string(toKind), fromNode.Name, toNode.Name)
+							violations++
+						}
 					}
 				}
 			}
-			
-			if violations > 0 {
-				fmt.Fprintf(os.Stderr, "\n❌ Architecture vet failed! Found %d forbidden dependency violations.\n", violations)
-				os.Exit(1)
-			} else {
-				fmt.Fprintf(os.Stderr, "✅ Architecture vet passed perfectly! No forbidden dependencies.\n")
-				// If no file processing is explicitly wanted beyond vetting, return
-				if *format == "" {
-					return
-				}
-			}
-		} else {
-			fmt.Fprintf(os.Stderr, "Invalid vet rule format. Use 'from!to' (e.g., 'handler!store')\n")
+		}
+		
+		if violations > 0 {
+			fmt.Fprintf(os.Stderr, "\n❌ Architecture vet failed! Found %d forbidden dependency violations.\n", violations)
 			os.Exit(1)
+		} else {
+			fmt.Fprintf(os.Stderr, "✅ Architecture vet passed perfectly! No forbidden dependencies.\n")
+			// If no file processing is explicitly wanted beyond vetting, return
+			if *format == "" {
+				return
+			}
 		}
 	}
 
