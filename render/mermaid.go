@@ -93,6 +93,17 @@ func (m *MermaidRenderer) renderNode(w io.Writer, n *structmap.Node) {
 	if route, ok := n.Meta["route"]; ok {
 		fmt.Fprintf(w, "      +Route() %s\n", route)
 	}
+	
+	if ks, ok := n.Meta["vitess_keyspace"]; ok {
+		shardStatus := "Unsharded"
+		if n.Meta["vitess_sharded"] == "true" {
+			shardStatus = "Sharded"
+		}
+		fmt.Fprintf(w, "      +Vitess() Keyspace: %s (%s)\n", ks, shardStatus)
+		if vidx, vok := n.Meta["vitess_vindex"]; vok {
+			fmt.Fprintf(w, "      +Vindex() %s\n", vidx)
+		}
+	}
 
 	for _, f := range n.Fields {
 		fmt.Fprintf(w, "      +%s %s\n", f.Name, sanitizeTypeName(f.Type))

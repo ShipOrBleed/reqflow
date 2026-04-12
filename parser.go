@@ -56,7 +56,10 @@ func Parse(opts Options) (*Graph, error) {
 	// 3. API Route Extractions
 	extractRoutes(pkgs, graph)
 
-	// 4. Shrink visual scope if focused
+	// 4. Vitess Database Topology Enrichment
+	parseVitessSchema(opts.Dir, graph)
+
+	// 5. Shrink visual scope if focused
 	if opts.Focus != "" {
 		applyFocus(graph, opts.Focus)
 	}
