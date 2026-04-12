@@ -54,6 +54,9 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "  classDef store fill:#ffeeba,stroke:#ffc107,color:#856404")
 	fmt.Fprintln(w, "  classDef model fill:#f8d7da,stroke:#dc3545,color:#721c24")
 	fmt.Fprintln(w, "  classDef event fill:#e2e3e5,stroke:#343a40,stroke-dasharray: 5 5,color:#343a40")
+	fmt.Fprintln(w, "  classDef middleware fill:#fff3cd,stroke:#856404,stroke-dasharray: 3 3,color:#856404")
+	fmt.Fprintln(w, "  classDef grpc fill:#d1ecf1,stroke:#0c5460,color:#0c5460")
+	fmt.Fprintln(w, "  classDef infra fill:#e8daef,stroke:#6c3483,color:#6c3483")
 	fmt.Fprintln(w, "  classDef diffnew fill:#d4edda,stroke:#28a745,color:#155724,stroke-width:4px,stroke-dasharray: 5 5")
 	fmt.Fprintln(w, "  classDef diffdel fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:4px,stroke-dasharray: 5 5")
 	
@@ -77,6 +80,12 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 			fmt.Fprintf(w, "  class %s model\n", sanitizeID(node.ID))
 		case structmap.KindEvent:
 			fmt.Fprintf(w, "  class %s event\n", sanitizeID(node.ID))
+		case structmap.KindMiddleware:
+			fmt.Fprintf(w, "  class %s middleware\n", sanitizeID(node.ID))
+		case structmap.KindGRPC:
+			fmt.Fprintf(w, "  class %s grpc\n", sanitizeID(node.ID))
+		case structmap.KindInfra:
+			fmt.Fprintf(w, "  class %s infra\n", sanitizeID(node.ID))
 		}
 		
 		// 🔗 IDE Deep Links (Click-To-Code)

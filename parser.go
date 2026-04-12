@@ -64,7 +64,16 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	// 5. Detect Publish/Subscribe Event Busses
 	extractEvents(pkgs, graph)
 
-	// 6. Shrink visual scope if focused
+	// 6. Middleware chain detection
+	ExtractMiddleware(pkgs, graph)
+
+	// 7. gRPC / Protobuf detection
+	ExtractGRPC(pkgs, graph)
+
+	// 8. External infrastructure mapping (go.mod)
+	ExtractGoModDeps(opts.Dir, graph)
+
+	// 9. Shrink visual scope if focused
 	if opts.Focus != "" {
 		applyFocus(graph, opts.Focus)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/zopdev/govis"
 	"github.com/zopdev/govis/render"
+	"golang.org/x/tools/go/packages"
 )
 
 func Execute() {
@@ -22,6 +23,9 @@ func Execute() {
 	deadcode := flag.Bool("deadcode", false, "Detect and print potentially dead/unused architectural nodes (orphans)")
 	diff := flag.String("diff", "", "Compare current code against an older JSON architecture export (filepath)")
 	aiReview := flag.Bool("ai", false, "Analyze architecture using AI (Requires OPENAI_API_KEY env var)")
+	cycles := flag.Bool("cycles", false, "Detect circular dependencies in the architecture")
+	metrics := flag.Bool("metrics", false, "Print coupling metrics (fan-in/fan-out) for all components")
+	errCheck := flag.Bool("errcheck", false, "Detect swallowed/ignored error return values")
 	
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
@@ -122,6 +126,68 @@ func Execute() {
 		}
 	}
 
+	// 🔄 V3: Circular Dependency Detection
+	if *cycles {
+		detectedCycles := structmap.DetectCycles(graph)
+		fmt.Fprintf(os.Stderr, "\n🔄 CIRCULAR DEPENDENCY SCAN:\n")
+		if len(detectedCycles) == 0 {
+			fmt.Fprintf(os.Stderr, "  ✅ No circular dependencies found!\n")
+		} else {
+			for i, cycle := range detectedCycles {
+				var names []string
+				for _, id := range cycle {
+					if n, ok := graph.Nodes[id]; ok {
+						names = append(names, n.Name)
+					} else {
+						names = append(names, id)
+					}
+				}
+				fmt.Fprintf(os.Stderr, "  ⚠️  Cycle %d: %s\n", i+1, strings.Join(names, " → "))
+			}
+			fmt.Fprintf(os.Stderr, "  \n  Total cycles: %d\n", len(detectedCycles))
+		}
+	}
+
+	// 📊 V3: Coupling Metrics
+	if *metrics {
+		allMetrics := structmap.ComputeMetrics(graph)
+		fmt.Fprintf(os.Stderr, "\n📊 COUPLING METRICS:\n")
+		fmt.Fprintf(os.Stderr, "  %-30s %-12s %-8s %-8s %-8s\n", "COMPONENT", "KIND", "FAN-IN", "FAN-OUT", "RISK")
+		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat("-", 75))
+		for _, m := range allMetrics {
+			risk := "✅ Low"
+			total := m.FanIn + m.FanOut
+			if total > 10 {
+				risk = "🔴 GOD OBJECT"
+			} else if total > 5 {
+				risk = "🟡 Watch"
+			}
+			fmt.Fprintf(os.Stderr, "  %-30s %-12s %-8d %-8d %s\n", m.Name, m.Kind, m.FanIn, m.FanOut, risk)
+		}
+	}
+
+	// ⚠️ V3: Swallowed Error Detection
+	if *errCheck {
+		// Re-load packages for deeper inspection
+		pkgCfg := &packages.Config{
+			Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+			Dir:  opts.Dir,
+		}
+		pkgs, err := packages.Load(pkgCfg, "./...")
+		if err == nil {
+			errors := structmap.DetectSwallowedErrors(pkgs)
+			fmt.Fprintf(os.Stderr, "\n⚠️  SWALLOWED ERROR DETECTION:\n")
+			if len(errors) == 0 {
+				fmt.Fprintf(os.Stderr, "  ✅ No swallowed errors found!\n")
+			} else {
+				for _, e := range errors {
+					fmt.Fprintf(os.Stderr, "  - %s:%d in %s() — ignoring error from %s()\n", e.File, e.Line, e.FuncName, e.CallExpr)
+				}
+				fmt.Fprintf(os.Stderr, "  Total swallowed errors: %d\n", len(errors))
+			}
+		}
+	}
+
 	// 🚨 V2 Feature: Architecture Diffing
 	if *diff != "" {
 		bytes, err := os.ReadFile(*diff)
@@ -215,6 +281,8 @@ func Execute() {
 		r = &render.HTMLRenderer{}
 	case "mermaid":
 		r = &render.MermaidRenderer{}
+	case "markdown", "md":
+		r = &render.MarkdownRenderer{}
 	case "dot":
 		r = &render.DOTRenderer{}
 	case "svg":

@@ -7,10 +7,13 @@ const (
 	KindInterface NodeKind = "interface"
 	KindFunc      NodeKind = "func"
 	KindHandler   NodeKind = "handler" // HTTP handler
-	KindStore     NodeKind = "store"   // DB layer / Repository
-	KindModel     NodeKind = "model"   // DB entity / Model
-	KindService   NodeKind = "service" // Business logic
-	KindEvent     NodeKind = "event"   // Event Bus (Kafka/Rabbit)
+	KindStore      NodeKind = "store"      // DB layer / Repository
+	KindModel      NodeKind = "model"      // DB entity / Model
+	KindService    NodeKind = "service"    // Business logic
+	KindEvent      NodeKind = "event"      // Event Bus (Kafka/Rabbit)
+	KindMiddleware NodeKind = "middleware" // HTTP Middleware
+	KindGRPC       NodeKind = "grpc"       // gRPC service
+	KindInfra      NodeKind = "infra"      // External infrastructure
 )
 
 type Node struct {
