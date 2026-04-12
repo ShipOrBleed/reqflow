@@ -12,6 +12,18 @@ import (
 
 // Execute is the main CLI entrypoint for govis.
 func Execute() {
+	// Handle subcommands before flag parsing
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "version":
+			fmt.Printf("govis %s\n", structmap.Version)
+			return
+		case "init":
+			generateInitConfig()
+			return
+		}
+	}
+
 	// ---- Flag Definitions ----
 	format := flag.String("format", "mermaid", "Output format: mermaid, dot, html, json, markdown, svg")
 	out := flag.String("out", "", "Output file (default: stdout)")
@@ -76,6 +88,9 @@ func Execute() {
 		os.Exit(1)
 	}
 
+	// ---- Always Print Summary ----
+	structmap.PrintSummary(graph, os.Stderr)
+
 	// ---- Architecture Linting ----
 	var activeVetRules []string
 	if *vet != "" {
@@ -101,6 +116,11 @@ func Execute() {
 		Diff:         *diff,
 		AI:           *aiReview,
 	})
+
+	// ---- CI/CD Threshold Enforcement ----
+	if *fullAudit && loadedConfig != nil {
+		enforceThresholds(graph, loadedConfig)
+	}
 
 	// ---- Live Server Mode ----
 	if *serve != "" {

@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GovisConfig represents the .govis.yml configuration schema.
 type GovisConfig struct {
 	Linter struct {
 		VetRules []string `yaml:"vet_rules"`
@@ -19,12 +20,19 @@ type GovisConfig struct {
 			ModelMatch   string `yaml:"model_match"`
 		} `yaml:"domain_naming"`
 	} `yaml:"parser"`
+	Thresholds struct {
+		MaxCycles         *int `yaml:"max_cycles"`
+		MaxOrphans        *int `yaml:"max_orphans"`
+		MaxSecurityIssues *int `yaml:"max_security_issues"`
+	} `yaml:"thresholds"`
 
-	ServiceRegex *regexp.Regexp
-	StoreRegex   *regexp.Regexp
-	ModelRegex   *regexp.Regexp
+	// Compiled regexes (not from YAML)
+	ServiceRegex *regexp.Regexp `yaml:"-"`
+	StoreRegex   *regexp.Regexp `yaml:"-"`
+	ModelRegex   *regexp.Regexp `yaml:"-"`
 }
 
+// LoadConfig reads and parses a .govis.yml configuration file.
 func LoadConfig(path string) (*GovisConfig, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {

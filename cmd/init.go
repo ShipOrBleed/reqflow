@@ -1,0 +1,64 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+)
+
+const govisYAMLTemplate = `# ===========================================
+# Govis Configuration File
+# ===========================================
+# Place this file at the root of your Go project.
+# Govis will auto-detect and load it on every run.
+#
+# Documentation: https://github.com/zopdev/govis
+
+# Architecture linting rules.
+# Format: "from_kind!to_kind" — fails CI if this dependency exists.
+# Available kinds: handler, service, store, model, event, middleware, grpc
+linter:
+  vet_rules:
+    - "handler!store"    # Handlers must not bypass services to call stores directly
+    # - "handler!model"  # Uncomment to block handlers from accessing models
+
+# Parser configuration
+parser:
+  # Packages to completely ignore during analysis
+  ignore_packages:
+    - "mocks"
+    - "vendor"
+    - "testdata"
+    - "generated"
+
+  # Custom naming conventions for layer detection.
+  # Use Go-compatible regex. Govis uses these instead of default suffix matching.
+  domain_naming:
+    # service_match: ".*(Service|UseCase|Manager|Interactor)$"
+    # store_match: ".*(Repository|Store|Adapter|Gateway|DAO)$"
+    # model_match: ".*(Model|Entity|DTO|Record)$"
+
+# CI/CD thresholds — govis exits 1 if any threshold is exceeded.
+# Use with: govis -audit ./...
+thresholds:
+  max_cycles: 0          # Maximum allowed circular dependencies
+  max_orphans: 5         # Maximum allowed dead/orphaned components
+  # max_security_issues: 0 # Uncomment to fail on any security finding
+`
+
+// generateInitConfig creates a starter .govis.yml in the current directory.
+func generateInitConfig() {
+	path := ".govis.yml"
+
+	if _, err := os.Stat(path); err == nil {
+		fmt.Fprintf(os.Stderr, "⚠️  .govis.yml already exists. Remove it first to regenerate.\n")
+		return
+	}
+
+	if err := os.WriteFile(path, []byte(govisYAMLTemplate), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to create .govis.yml: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Fprintf(os.Stderr, "✅ Created .govis.yml with default configuration.\n")
+	fmt.Fprintf(os.Stderr, "   Edit it to customize architecture rules for your project.\n")
+}

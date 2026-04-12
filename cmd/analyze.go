@@ -273,3 +273,41 @@ func loadPackages(opts structmap.ParseOptions) []*packages.Package {
 	}
 	return pkgs
 }
+
+// enforceThresholds checks if graph metrics exceed configured limits.
+// Exits 1 if any threshold is breached — designed for CI/CD pipelines.
+func enforceThresholds(graph *structmap.Graph, cfg *structmap.GovisConfig) {
+	failures := 0
+
+	if cfg.Thresholds.MaxCycles != nil {
+		cycles := structmap.DetectCycles(graph)
+		if len(cycles) > *cfg.Thresholds.MaxCycles {
+			fmt.Fprintf(os.Stderr, "\n🚫 THRESHOLD BREACH: %d circular dependencies (max: %d)\n", len(cycles), *cfg.Thresholds.MaxCycles)
+			failures++
+		}
+	}
+
+	if cfg.Thresholds.MaxOrphans != nil {
+		hasIncoming := make(map[string]bool)
+		for _, e := range graph.Edges {
+			hasIncoming[e.To] = true
+		}
+		orphans := 0
+		for id, n := range graph.Nodes {
+			if n.Kind != structmap.KindHandler && n.Kind != structmap.KindFunc && n.Kind != structmap.KindEvent {
+				if !hasIncoming[id] {
+					orphans++
+				}
+			}
+		}
+		if orphans > *cfg.Thresholds.MaxOrphans {
+			fmt.Fprintf(os.Stderr, "\n🚫 THRESHOLD BREACH: %d orphaned components (max: %d)\n", orphans, *cfg.Thresholds.MaxOrphans)
+			failures++
+		}
+	}
+
+	if failures > 0 {
+		fmt.Fprintf(os.Stderr, "\n❌ CI/CD check failed: %d threshold(s) exceeded.\n", failures)
+		os.Exit(1)
+	}
+}

@@ -38,6 +38,10 @@ func Parse(opts ParseOptions) (*Graph, error) {
 
 	// Pass 1: Harvest structs, interfaces, and functions
 	for _, pkg := range pkgs {
+		// Apply ignore_packages filter from .govis.yml
+		if opts.Config != nil && shouldIgnorePackage(pkg.PkgPath, opts.Config.Parser.IgnorePackages) {
+			continue
+		}
 		for _, file := range pkg.Syntax {
 			ast.Inspect(file, func(n ast.Node) bool {
 				switch t := n.(type) {
@@ -74,6 +78,16 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	}
 
 	return graph, nil
+}
+
+// shouldIgnorePackage checks if a package path matches any ignore pattern.
+func shouldIgnorePackage(pkgPath string, ignorePatterns []string) bool {
+	for _, pattern := range ignorePatterns {
+		if strings.Contains(pkgPath, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleTypeSpec processes a single type declaration (struct or interface).
