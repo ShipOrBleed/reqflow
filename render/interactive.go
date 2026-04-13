@@ -10,9 +10,9 @@ import (
 	govis "github.com/thzgajendra/govis"
 )
 
-// InteractiveRenderer generates a self-contained HTML page with layered
-// architecture visualization — handlers at top, services below, interfaces,
-// stores, and models at bottom with vertical edge connections.
+// InteractiveRenderer generates a self-contained HTML page focused on helping
+// developers understand how a backend works — starting from API endpoints and
+// tracing request flows through handlers, services, stores, and models.
 type InteractiveRenderer struct{}
 
 type iNode struct {
@@ -76,7 +76,6 @@ func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
 		return fmt.Errorf("marshalling graph: %w", err)
 	}
 
-	// Count by kind
 	kindCounts := make(map[string]int)
 	for _, n := range g.Nodes {
 		kindCounts[string(n.Kind)]++
@@ -90,278 +89,355 @@ func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
 var tmpl = `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Govis Architecture</title>
+<meta charset="utf-8"><title>Govis — Understand Your Backend</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#141820;--surface:#1c2029;--surface2:#242830;--card:#1e222a;--border:#2a2e38;--accent:#38bdf8;--text:#e2e8f0;--muted:#7a8394;--green:#34d399;--blue:#60a5fa;--yellow:#fbbf24;--red:#f87171;--purple:#a78bfa;--teal:#2dd4bf;--orange:#fb923c;--gray:#6b7280}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-header{background:var(--surface);padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.logo{font-size:1.2rem;font-weight:800;color:var(--accent)}.logo span{color:var(--text);font-weight:400;opacity:.7}
-.modes{display:flex;gap:4px}
-.modes button{background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 16px;border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:600;transition:all .15s}
-.modes button:hover{border-color:var(--accent);color:var(--text)}
-.modes button.active{background:var(--accent);color:#0f172a;border-color:var(--accent)}
-.wrap{display:flex;flex:1;overflow:hidden}
-.sidebar{width:280px;background:var(--surface);border-right:1px solid var(--border);padding:16px;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;gap:16px}
-.sidebar h4{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
-#search{width:100%%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.8rem;outline:none}
-#search:focus{border-color:var(--accent)}#search::placeholder{color:var(--muted)}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;transition:all .15s}
-.stat:hover{border-color:var(--accent)}.stat.active{border-color:var(--accent);background:#172033}
-.stat h3{font-size:1.4rem;font-weight:800;line-height:1}
-.stat p{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;margin-top:3px;display:flex;align-items:center;gap:4px}
-.stat .dot{width:7px;height:7px;border-radius:50%%;display:inline-block}
-.layer-toggles{display:flex;flex-direction:column;gap:4px}
-.ltoggle{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:.8rem}
-.ltoggle input{accent-color:var(--accent);width:16px;height:16px}
-.ltoggle .cnt{margin-left:auto;color:var(--muted);font-size:.75rem}
-.detail-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:40vh;overflow-y:auto}
-.detail-box .placeholder{color:var(--muted);font-size:.8rem}
-.detail-box h3{font-size:.9rem;color:var(--accent);margin-bottom:4px}
-.detail-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.6rem;text-transform:uppercase;font-weight:700;color:#fff}
-.detail-section{margin-top:8px}.detail-section h4{font-size:.6rem;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-.detail-item{font-size:.75rem;color:var(--muted);padding:1px 0}.detail-item strong{color:var(--text)}
-.conn-link{color:var(--accent);cursor:pointer;font-size:.72rem}.conn-link:hover{text-decoration:underline}
-.canvas-area{flex:1;overflow:auto;padding:24px 32px;position:relative}
-.lane{margin-bottom:8px;position:relative}
-.lane-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;padding-left:2px}
-.lane-label.handler{color:var(--green)}.lane-label.service{color:var(--blue)}.lane-label.store{color:var(--yellow)}.lane-label.model{color:var(--red)}.lane-label.interface{color:var(--purple)}.lane-label.grpc{color:var(--teal)}.lane-label.infra{color:var(--purple)}.lane-label.event{color:var(--gray)}.lane-label.other{color:var(--gray)}
-.lane-grid{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:8px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;width:180px;cursor:pointer;transition:all .15s;position:relative}
-.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
-.card.selected{border-color:var(--accent);background:#172033;box-shadow:0 0 0 2px rgba(56,189,248,.2)}
-.card.highlight{box-shadow:0 0 0 2px rgba(251,191,36,.4);border-color:var(--yellow)}
-.card.chain{box-shadow:0 0 0 2px rgba(56,189,248,.35);border-color:var(--accent);background:#15202e}
-.card.dimmed{opacity:.15}
-.card .name{font-size:.8rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card .sub{font-size:.6rem;color:var(--muted);margin-top:3px;line-height:1.3;max-height:2.6em;overflow:hidden}
-.card .route{font-size:.6rem;color:var(--green);margin-top:3px;font-family:monospace}
-.card .conn-count{position:absolute;top:6px;right:8px;font-size:.55rem;color:var(--muted);background:var(--surface2);padding:1px 5px;border-radius:8px}
-.card.handler{border-left:3px solid var(--green)}.card.service{border-left:3px solid var(--blue)}.card.store{border-left:3px solid var(--yellow)}.card.model{border-left:3px solid var(--red)}.card.interface{border-left:3px solid var(--purple);border-style:dashed;border-left-style:dashed}.card.grpc{border-left:3px solid var(--teal)}.card.infra{border-left:3px solid var(--purple)}.card.event{border-left:3px solid var(--gray)}.card.middleware{border-left:3px solid var(--orange)}.card.func{border-left:3px solid var(--gray)}.card.struct{border-left:3px solid var(--gray)}
-svg.edges{position:absolute;top:0;left:0;width:100%%;height:100%%;pointer-events:none;z-index:1}
-svg.edges line{stroke-width:1.5;opacity:.35}
-svg.edges line.active{stroke-width:2.5;opacity:.9}
-.flow-item{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:6px;cursor:pointer;margin-bottom:4px;font-size:.75rem;transition:all .15s}
-.flow-item:hover{background:var(--border)}.flow-item .arrow{color:var(--muted);font-size:.6rem}
-.flow-item .fkind{font-size:.55rem;padding:1px 5px;border-radius:3px;color:#fff}
-.pkg-group{margin-bottom:16px}
-.pkg-header{font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:6px;padding:4px 8px;background:var(--surface2);border-radius:4px;display:inline-block}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+:root{--bg:#0f1117;--surface:#181b23;--surface2:#1f232d;--card:#1a1e28;--border:#262a36;--accent:#38bdf8;--text:#e2e8f0;--muted:#6b7280;--green:#34d399;--blue:#60a5fa;--yellow:#fbbf24;--red:#f87171;--purple:#a78bfa;--teal:#2dd4bf;--orange:#fb923c}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+
+/* Header */
+.hdr{background:var(--surface);padding:10px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-shrink:0}
+.logo{font-size:1.15rem;font-weight:800;color:var(--accent)}.logo span{color:var(--text);font-weight:400;opacity:.6}
+.tabs{display:flex;gap:2px;background:var(--bg);border-radius:8px;padding:2px}
+.tab{padding:6px 16px;border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:600;color:var(--muted);transition:all .15s;border:none;background:none}
+.tab:hover{color:var(--text)}.tab.on{background:var(--accent);color:#0f172a}
+.hdr-stats{margin-left:auto;display:flex;gap:12px;font-size:.7rem;color:var(--muted)}
+.hdr-stats b{color:var(--text);margin-right:2px}
+
+/* Layout */
+.body{display:flex;flex:1;overflow:hidden}
+.panel{width:320px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.panel-head{padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+.panel-head h3{font-size:.85rem;font-weight:700;margin-bottom:8px}
+.panel-search{width:100%%;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.8rem;outline:none}
+.panel-search:focus{border-color:var(--accent)}.panel-search::placeholder{color:var(--muted)}
+.panel-list{flex:1;overflow-y:auto;padding:8px}
+.main-area{flex:1;overflow-y:auto;padding:28px 36px}
+
+/* Endpoint list items */
+.ep{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;transition:all .12s;border:1px solid transparent}
+.ep:hover{background:var(--surface2);border-color:var(--border)}
+.ep.active{background:var(--surface2);border-color:var(--accent)}
+.ep .method{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:3px;color:#fff;display:inline-block;margin-right:6px}
+.ep .method.GET{background:#059669}.ep .method.POST{background:#2563eb}.ep .method.PUT{background:#d97706}.ep .method.DELETE{background:#dc2626}.ep .method.PATCH{background:#7c3aed}
+.ep .path{font-size:.8rem;font-family:monospace;color:var(--text)}
+.ep .handler-name{font-size:.65rem;color:var(--muted);margin-top:3px}
+
+/* Flow visualization */
+.flow{max-width:700px}
+.flow-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.flow-subtitle{font-size:.75rem;color:var(--muted);margin-bottom:24px}
+.step{position:relative;padding-left:48px;padding-bottom:24px}
+.step:last-child{padding-bottom:0}
+.step::before{content:'';position:absolute;left:18px;top:36px;bottom:0;width:2px;background:var(--border)}
+.step:last-child::before{display:none}
+.step-icon{position:absolute;left:4px;top:4px;width:30px;height:30px;border-radius:50%%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;color:#fff;z-index:1}
+.step-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:all .15s;cursor:pointer}
+.step-box:hover{border-color:var(--accent);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.step-box.active{border-color:var(--accent);background:#131a2a}
+.step-kind{font-size:.55rem;text-transform:uppercase;font-weight:700;letter-spacing:.06em;margin-bottom:4px}
+.step-name{font-size:.9rem;font-weight:700}
+.step-detail{font-size:.72rem;color:var(--muted);margin-top:6px;line-height:1.5}
+.step-detail code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:.68rem}
+.step-methods{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.step-methods span{background:var(--surface2);padding:2px 8px;border-radius:4px;font-size:.65rem;font-family:monospace;color:var(--text)}
+.step-fields{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+.step-fields span{font-size:.62rem;color:var(--muted);font-family:monospace;background:var(--bg);padding:2px 6px;border-radius:3px}
+.step-arrow{color:var(--muted);font-size:.6rem;padding-left:48px;padding-bottom:4px;margin-top:-4px}
+.step-used-by{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.step-used-by h5{font-size:.6rem;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.step-used-by a{font-size:.7rem;display:inline-block;margin-right:8px}
+
+/* Overview grid */
+.overview-section{margin-bottom:24px}
+.overview-section h3{font-size:.8rem;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.overview-section h3 .badge{font-size:.65rem;background:var(--surface2);padding:2px 8px;border-radius:10px;color:var(--muted);font-weight:400}
+.overview-grid{display:flex;flex-wrap:wrap;gap:8px}
+.ov-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;width:175px;cursor:pointer;transition:all .15s}
+.ov-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.ov-card .ov-name{font-size:.8rem;font-weight:600}
+.ov-card .ov-sub{font-size:.6rem;color:var(--muted);margin-top:2px}
+.ov-card.handler{border-left:3px solid var(--green)}.ov-card.service{border-left:3px solid var(--blue)}.ov-card.store{border-left:3px solid var(--yellow)}.ov-card.model{border-left:3px solid var(--red)}.ov-card.interface{border-left:3px solid var(--purple);border-style:dashed}.ov-card.grpc{border-left:3px solid var(--teal)}.ov-card.infra{border-left:3px solid var(--purple)}.ov-card.event{border-left:3px solid var(--muted)}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 40px;color:var(--muted)}
+.empty h2{font-size:1.1rem;color:var(--text);margin-bottom:8px}
+.empty p{font-size:.85rem;line-height:1.6}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 </style>
 </head>
 <body>
-<header>
+<div class="hdr">
 <div class="logo">GOVIS<span>.arch</span></div>
-<div class="modes">
-<button class="active" onclick="setMode('layered')">Layered</button>
-<button onclick="setMode('package')">Package</button>
-<button onclick="setMode('focus')">Focus</button>
-<button onclick="setMode('flows')">API Flows</button>
+<div class="tabs">
+<div class="tab on" onclick="setTab('explore')">Explore APIs</div>
+<div class="tab" onclick="setTab('overview')">Architecture</div>
+<div class="tab" onclick="setTab('packages')">Packages</div>
 </div>
-</header>
-<div class="wrap">
-<div class="sidebar">
-<section><h4>Search</h4><input id="search" placeholder="Search nodes..." oninput="doSearch(this.value)"></section>
-<section><h4>Architecture</h4><div class="stats" id="stats-grid"></div></section>
-<section><h4>Layer Visibility</h4><div class="layer-toggles" id="layer-toggles"></div></section>
-<section><h4>Selected Node</h4><div class="detail-box" id="detail"><div class="placeholder">Click any node to inspect</div></div></section>
+<div class="hdr-stats" id="hdr-stats"></div>
 </div>
-<div class="canvas-area" id="canvas"></div>
+<div class="body">
+<div class="panel" id="panel">
+<div class="panel-head">
+<h3 id="panel-title">API Endpoints</h3>
+<input class="panel-search" id="panel-search" placeholder="Filter..." oninput="filterPanel()">
+</div>
+<div class="panel-list" id="panel-list"></div>
+</div>
+<div class="main-area" id="main"></div>
 </div>
 <script>
-const D=%s;
-const KC=%s;
-const kindColor={handler:'#34d399',service:'#60a5fa',store:'#fbbf24',model:'#f87171',interface:'#a78bfa',grpc:'#2dd4bf',infra:'#a78bfa',event:'#6b7280',middleware:'#fb923c',func:'#6b7280',struct:'#6b7280',route:'#2dd4bf',envvar:'#34d399',table:'#fb923c',container:'#a78bfa',dependency:'#6b7280',proto_rpc:'#a78bfa',proto_msg:'#f87171'};
-const layerOrder=['handler','grpc','middleware','service','interface','event','store','model','infra','route','envvar','table','container','proto_rpc','proto_msg','struct','func'];
-const layerLabels={handler:'HTTP Handlers',service:'Services',store:'Stores',model:'Models',interface:'Interfaces',grpc:'gRPC Services',infra:'Infrastructure',event:'Events',middleware:'Middleware',func:'Functions',struct:'Structs',route:'Routes',envvar:'Env Vars',table:'Tables',container:'Containers',proto_rpc:'Proto RPCs',proto_msg:'Proto Messages'};
-const archKinds=new Set(['handler','service','store','model','interface','grpc','infra','event','middleware']);
+const D=%s,KC=%s;
+const kindColor={handler:'#34d399',service:'#60a5fa',store:'#fbbf24',model:'#f87171',interface:'#a78bfa',grpc:'#2dd4bf',infra:'#a78bfa',event:'#6b7280',middleware:'#fb923c',func:'#6b7280',struct:'#6b7280'};
+const kindEmoji={handler:'H',service:'S',store:'D',model:'M',interface:'I',grpc:'G',infra:'X',event:'E'};
+const layerOrder=['handler','grpc','middleware','service','interface','event','store','model','infra'];
 const NM={};D.nodes.forEach(n=>NM[n.id]=n);
 const outE={},inE={};
 D.edges.forEach(e=>{if(!outE[e.source])outE[e.source]=[];outE[e.source].push(e);if(!inE[e.target])inE[e.target]=[];inE[e.target].push(e)});
-let mode='layered',selectedId=null,visibleKinds=new Set(layerOrder.filter(k=>archKinds.has(k)));
 
-// Build full dependency chain from a node (BFS downward)
-function getChain(id){
-const chain=new Set([id]);const q=[id];
-while(q.length){const cur=q.shift();(outE[cur]||[]).forEach(e=>{if(!chain.has(e.target)){chain.add(e.target);q.push(e.target)}})}
+// Header stats
+const hs=document.getElementById('hdr-stats');
+['handler','service','store','model'].forEach(k=>{if(KC[k])hs.innerHTML+='<span><b style="color:'+kindColor[k]+'">'+KC[k]+'</b> '+k+'s</span>'});
+
+let tab='explore',selectedEp=null,selectedNode=null,selectedRoute=null;
+
+// Get full downstream chain
+function getChain(id,visited){
+if(!visited)visited=new Set();if(visited.has(id))return[];visited.add(id);
+let chain=[id];(outE[id]||[]).forEach(e=>{if(!visited.has(e.target))chain=chain.concat(getChain(e.target,visited))});
 return chain}
 
-// Build reverse chain (who depends on this)
-function getReverseChain(id){
-const chain=new Set([id]);const q=[id];
-while(q.length){const cur=q.shift();(inE[cur]||[]).forEach(e=>{if(!chain.has(e.source)){chain.add(e.source);q.push(e.source)}})}
-return chain}
+// Get reverse chain
+function getUsedBy(id){const users=[];(inE[id]||[]).forEach(e=>{const n=NM[e.source];if(n)users.push(n)});return users}
 
-// Stats
-const sg=document.getElementById('stats-grid');
-[['handler','Handlers'],['service','Services'],['store','Stores'],['model','Models']].forEach(([k,label])=>{
-const c=KC[k]||0;if(!c)return;
-const d=document.createElement('div');d.className='stat';d.dataset.kind=k;
-d.innerHTML='<h3 style="color:'+kindColor[k]+'">'+c+'</h3><p><span class="dot" style="background:'+kindColor[k]+'"></span>'+label+'</p>';
-d.onclick=()=>{document.querySelectorAll('.stat').forEach(s=>s.classList.remove('active'));d.classList.add('active');highlightKind(k)};
-sg.appendChild(d)});
-
-// Layer toggles
-const lt=document.getElementById('layer-toggles');
-layerOrder.forEach(k=>{const c=KC[k]||0;if(!c)return;
-const l=document.createElement('label');l.className='ltoggle';
-l.innerHTML='<input type="checkbox" '+(archKinds.has(k)?'checked':'')+' data-kind="'+k+'" onchange="toggleKind(this)"><span style="color:'+kindColor[k]+'">'+(layerLabels[k]||k).split(' ')[0]+'</span><span class="cnt">'+c+'</span>';
-lt.appendChild(l)});
-
-function toggleKind(cb){if(cb.checked)visibleKinds.add(cb.dataset.kind);else visibleKinds.delete(cb.dataset.kind);render()}
-function setMode(m){mode=m;document.querySelectorAll('.modes button').forEach(b=>b.classList.remove('active'));document.querySelector('.modes button[onclick*="'+m+'"]').classList.add('active');selectedId=null;render()}
-
-function makeCard(n,extra){
-const c=document.createElement('div');c.className='card '+n.kind+(extra||'');c.dataset.id=n.id;
-const conns=(outE[n.id]||[]).length+(inE[n.id]||[]).length;
-let html='<div class="name" title="'+n.label+'">'+n.label+'</div>';
-if(conns>0)html+='<span class="conn-count">'+conns+'</span>';
-if(n.meta&&n.meta.route)html+='<div class="route">'+n.meta.route+'</div>';
-else{const subs=[];
-if(n.kind==='interface')subs.push('«interface»');
-if(n.methods&&n.methods.length)subs.push(n.methods.slice(0,3).join(' · ')+(n.methods.length>3?' +'+( n.methods.length-3):''));
-else if(n.fields&&n.fields.length)subs.push(n.fields.slice(0,3).join(' · ')+(n.fields.length>3?' +':''));
-if(subs.length)html+='<div class="sub">'+subs.join(' ')+'</div>';
-else html+='<div class="sub">'+n.pkgName+'</div>';}
-c.innerHTML=html;
-c.onclick=()=>{showDetail(n.id);if(mode==='focus'){selectedId=n.id;render()}};
-c.onmouseenter=()=>{if(mode==='layered')traceChain(n.id)};
-c.onmouseleave=()=>{if(mode==='layered')clearTrace()};
-return c}
-
-function traceChain(id){
-const chain=getChain(id);const rev=getReverseChain(id);
-const full=new Set([...chain,...rev]);
-document.querySelectorAll('.card').forEach(c=>{if(!full.has(c.dataset.id))c.classList.add('dimmed');else c.classList.add('chain')});
-document.querySelectorAll('svg.edges line').forEach(l=>{
-if(full.has(l.dataset.from)&&full.has(l.dataset.to))l.classList.add('active')})}
-
-function clearTrace(){
-document.querySelectorAll('.card.dimmed').forEach(c=>c.classList.remove('dimmed'));
-document.querySelectorAll('.card.chain').forEach(c=>c.classList.remove('chain'));
-document.querySelectorAll('svg.edges line.active').forEach(l=>l.classList.remove('active'))}
+// === TABS ===
+function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));document.querySelector('.tab[onclick*="'+t+'"]').classList.add('on');
+document.getElementById('panel-search').value='';render()}
 
 function render(){
-const cv=document.getElementById('canvas');cv.innerHTML='';
-if(mode==='layered')renderLayered(cv);
-else if(mode==='package')renderPackage(cv);
-else if(mode==='focus')renderFocus(cv);
-else if(mode==='flows')renderFlows(cv)}
+if(tab==='explore')renderExplore();
+else if(tab==='overview')renderOverview();
+else if(tab==='packages')renderPackages()}
 
-function renderLayered(cv){
-const layers={};D.nodes.forEach(n=>{if(!visibleKinds.has(n.kind))return;if(!layers[n.kind])layers[n.kind]=[];layers[n.kind].push(n)});
-layerOrder.forEach(k=>{const nodes=layers[k];if(!nodes||!nodes.length)return;
-const lane=document.createElement('div');lane.className='lane';
-lane.innerHTML='<div class="lane-label '+k+'">'+(layerLabels[k]||k)+' ('+nodes.length+')</div>';
-const grid=document.createElement('div');grid.className='lane-grid';
+// === EXPLORE APIs ===
+function renderExplore(){
+document.getElementById('panel-title').textContent='API Endpoints';
+const pl=document.getElementById('panel-list');pl.innerHTML='';
+const main=document.getElementById('main');
+
+// Collect all handlers with routes — each route becomes its own entry
+const endpoints=[];
+D.nodes.forEach(n=>{if(n.kind==='handler'){
+const routes=n.meta?.routes||n.meta?.route||'';
+if(routes){
+routes.split('\n').forEach(route=>{
+if(!route.trim())return;
+const parts=route.trim().split(' ');
+endpoints.push({node:n,method:parts[0]||'',path:parts.slice(1).join(' ')||route,routeLabel:route})
+})}
+else endpoints.push({node:n,method:'',path:n.label,routeLabel:n.label})}});
+
+endpoints.sort((a,b)=>a.path.localeCompare(b.path));
+
+if(endpoints.length===0){
+pl.innerHTML='<div style="padding:12px;color:var(--muted);font-size:.8rem">No HTTP handlers found</div>';
+main.innerHTML='<div class="empty"><h2>No API Endpoints Detected</h2><p>This service has no HTTP handlers.<br>Try the Architecture tab to explore components.</p></div>';
+return}
+
+endpoints.forEach((ep,i)=>{
+const div=document.createElement('div');div.className='ep'+(selectedEp===ep.node.id?' active':'');div.dataset.id=ep.node.id;
+let mclass=ep.method||'GET';
+div.innerHTML=(ep.method?'<span class="method '+mclass+'">'+ep.method+'</span>':'')+
+'<span class="path">'+ep.path+'</span>'+
+'<div class="handler-name">'+ep.node.label+'</div>';
+div.onclick=()=>{selectedEp=ep.node.id;selectedRoute=ep.routeLabel;renderExplore()};
+pl.appendChild(div)});
+
+if(!selectedEp&&endpoints.length>0){selectedEp=endpoints[0].node.id;selectedRoute=endpoints[0].routeLabel;}
+// Highlight active
+pl.querySelectorAll('.ep').forEach(e=>{if(e.dataset.id===selectedEp)e.classList.add('active');else e.classList.remove('active')});
+
+if(selectedEp)renderFlow(selectedEp);
+else main.innerHTML='<div class="empty"><h2>Select an Endpoint</h2><p>Click any API endpoint on the left to trace<br>its request flow through the backend.</p></div>'}
+
+function renderFlow(handlerId){
+const main=document.getElementById('main');main.innerHTML='';
+const handler=NM[handlerId];if(!handler)return;
+const route=selectedRoute||handler.meta?.route||handler.label;
+
+const flow=document.createElement('div');flow.className='flow';
+flow.innerHTML='<div class="flow-title">'+route+'</div><div class="flow-subtitle">Request flow — trace how this endpoint processes a request from entry to database</div>';
+
+// Build the chain
+const chainIds=getChain(handlerId);
+// Order by layer
+const chainNodes=chainIds.map(id=>NM[id]).filter(Boolean);
+chainNodes.sort((a,b)=>layerOrder.indexOf(a.kind)-layerOrder.indexOf(b.kind));
+
+// Remove duplicates keeping order
+const seen=new Set();const ordered=[];
+chainNodes.forEach(n=>{if(!seen.has(n.id)){seen.add(n.id);ordered.push(n)}});
+
+ordered.forEach((n,i)=>{
+const color=kindColor[n.kind]||'#6b7280';
+const step=document.createElement('div');
+
+// Arrow between steps
+if(i>0){const arrow=document.createElement('div');arrow.className='step-arrow';
+const prevKind=ordered[i-1].kind;const curKind=n.kind;
+let label='calls';
+if(prevKind==='handler'&&curKind==='service')label='delegates to';
+else if(prevKind==='service'&&curKind==='store')label='queries via';
+else if(prevKind==='service'&&curKind==='interface')label='uses interface';
+else if(prevKind==='store'&&curKind==='model')label='maps to';
+else if(curKind==='event')label='publishes to';
+arrow.textContent='↓ '+label;
+flow.appendChild(arrow)}
+
+step.className='step';
+step.innerHTML='<div class="step-icon" style="background:'+color+'">'+(kindEmoji[n.kind]||'?')+'</div>';
+
+const box=document.createElement('div');box.className='step-box'+(n.id===selectedNode?' active':'');
+box.onclick=()=>{selectedNode=n.id;renderFlow(handlerId)};
+
+let html='<div class="step-kind" style="color:'+color+'">'+n.kind+'</div>';
+html+='<div class="step-name">'+n.label+'</div>';
+
+// Context-specific details
+const details=[];
+if(n.meta?.route)details.push('Route: <code>'+n.meta.route+'</code>');
+if(n.pkgName)details.push('Package: <code>'+n.pkgName+'</code>');
+if(n.file)details.push('File: <code>'+n.file.split('/').pop()+':'+n.line+'</code>');
+if(details.length)html+='<div class="step-detail">'+details.join(' · ')+'</div>';
+
+// Methods
+if(n.methods&&n.methods.length){
+html+='<div class="step-methods">';
+n.methods.slice(0,6).forEach(m=>{html+='<span>'+m+'()</span>'});
+if(n.methods.length>6)html+='<span>+' +(n.methods.length-6)+' more</span>';
+html+='</div>'}
+
+// Fields for models
+if(n.kind==='model'&&n.fields&&n.fields.length){
+html+='<div class="step-fields">';
+n.fields.slice(0,8).forEach(f=>{html+='<span>'+f+'</span>'});
+if(n.fields.length>8)html+='<span>+' +(n.fields.length-8)+'</span>';
+html+='</div>'}
+
+// Meta (non-standard)
+const metaKeys=Object.keys(n.meta||{}).filter(k=>!['route','http_method','is_constructor','deps'].includes(k)&&n.meta[k]);
+if(metaKeys.length){
+html+='<div class="step-detail" style="margin-top:6px">';
+metaKeys.slice(0,3).forEach(k=>{html+=k+': <code>'+n.meta[k]+'</code> '});
+html+='</div>'}
+
+// "Also used by" — show other handlers that use this component
+if(n.id!==handlerId){
+const usedBy=getUsedBy(n.id).filter(u=>u.id!==handlerId&&u.kind==='handler');
+if(usedBy.length){html+='<div class="step-used-by"><h5>Also used by</h5>';
+usedBy.slice(0,4).forEach(u=>{html+='<a href="#" onclick="event.preventDefault();selectedEp=\''+u.id.replace(/'/g,"\\'")+'\';renderExplore()">'+u.label+'</a>'});
+if(usedBy.length>4)html+='<span style="color:var(--muted);font-size:.65rem">+' +(usedBy.length-4)+' more</span>';
+html+='</div>'}}
+
+box.innerHTML=html;step.appendChild(box);flow.appendChild(step)});
+
+if(ordered.length<=1){
+flow.innerHTML+='<div style="color:var(--muted);padding:20px 48px;font-size:.8rem">No downstream dependencies detected for this handler.<br>It may call external services directly or use patterns not yet detected by GoVis.</div>'}
+
+main.appendChild(flow)}
+
+// === OVERVIEW ===
+function renderOverview(){
+document.getElementById('panel-title').textContent='Components';
+const pl=document.getElementById('panel-list');pl.innerHTML='';
+const main=document.getElementById('main');main.innerHTML='';
+
+// Panel: list all arch nodes
+const archNodes=D.nodes.filter(n=>['handler','service','store','model','interface','grpc','infra','event','middleware'].includes(n.kind));
+archNodes.sort((a,b)=>{const ki=layerOrder.indexOf(a.kind)-layerOrder.indexOf(b.kind);return ki||a.label.localeCompare(b.label)});
+archNodes.forEach(n=>{
+const div=document.createElement('div');div.className='ep'+(selectedNode===n.id?' active':'');div.dataset.id=n.id;
+div.innerHTML='<span style="display:inline-block;width:8px;height:8px;border-radius:50%%;background:'+kindColor[n.kind]+';margin-right:8px"></span><span class="path" style="font-family:inherit">'+n.label+'</span><div class="handler-name">'+n.kind+' · '+n.pkgName+'</div>';
+div.onclick=()=>{selectedNode=n.id;renderOverview()};
+pl.appendChild(div)});
+
+// Main: layered overview
+layerOrder.forEach(k=>{
+const nodes=D.nodes.filter(n=>n.kind===k);if(!nodes.length)return;
+const sec=document.createElement('div');sec.className='overview-section';
+sec.innerHTML='<h3 style="color:'+kindColor[k]+'">'+({'handler':'HTTP Handlers','service':'Services','store':'Stores','model':'Models','interface':'Interfaces','grpc':'gRPC Services','infra':'Infrastructure','event':'Events','middleware':'Middleware'}[k]||k)+'<span class="badge">'+nodes.length+'</span></h3>';
+const grid=document.createElement('div');grid.className='overview-grid';
 nodes.sort((a,b)=>a.label.localeCompare(b.label));
-nodes.forEach(n=>grid.appendChild(makeCard(n)));
-lane.appendChild(grid);cv.appendChild(lane)});
-// Draw SVG edges after layout
-requestAnimationFrame(()=>drawEdges(cv))}
+nodes.forEach(n=>{
+const card=document.createElement('div');card.className='ov-card '+n.kind;
+const conns=(outE[n.id]||[]).length+(inE[n.id]||[]).length;
+let sub=n.pkgName;if(n.methods&&n.methods.length)sub=n.methods.slice(0,2).join(', ')+(n.methods.length>2?' +':'');
+if(n.meta?.route)sub=n.meta.route;
+card.innerHTML='<div class="ov-name">'+n.label+(conns?' <span style="color:var(--muted);font-size:.6rem">'+conns+'</span>':'')+'</div><div class="ov-sub">'+sub+'</div>';
+card.onclick=()=>{selectedNode=n.id;renderNodeDetail(n.id)};
+grid.appendChild(card)});
+sec.appendChild(grid);main.appendChild(sec)});
 
-function drawEdges(cv){
-const existing=cv.querySelector('svg.edges');if(existing)existing.remove();
-const rect=cv.getBoundingClientRect();
-const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-svg.setAttribute('class','edges');svg.style.width=cv.scrollWidth+'px';svg.style.height=cv.scrollHeight+'px';
-D.edges.forEach(e=>{
-const fromEl=cv.querySelector('[data-id="'+CSS.escape(e.source)+'"]');
-const toEl=cv.querySelector('[data-id="'+CSS.escape(e.target)+'"]');
-if(!fromEl||!toEl)return;
-const fr=fromEl.getBoundingClientRect();const tr=toEl.getBoundingClientRect();
-const sx=fr.left+fr.width/2-rect.left+cv.scrollLeft;
-const sy=fr.top+fr.height-rect.top+cv.scrollTop;
-const tx=tr.left+tr.width/2-rect.left+cv.scrollLeft;
-const ty=tr.top-rect.top+cv.scrollTop;
-const line=document.createElementNS('http://www.w3.org/2000/svg','line');
-line.setAttribute('x1',sx);line.setAttribute('y1',sy);
-line.setAttribute('x2',tx);line.setAttribute('y2',ty);
-line.setAttribute('stroke',kindColor[NM[e.source]?.kind]||'#475569');
-line.dataset.from=e.source;line.dataset.to=e.target;
-svg.appendChild(line)});
-cv.style.position='relative';cv.insertBefore(svg,cv.firstChild)}
+if(selectedNode)renderNodeDetail(selectedNode)}
 
-function renderPackage(cv){
-const pkgs={};D.nodes.forEach(n=>{if(!visibleKinds.has(n.kind))return;if(!pkgs[n.pkgName])pkgs[n.pkgName]=[];pkgs[n.pkgName].push(n)});
-Object.keys(pkgs).sort().forEach(pkg=>{
-const grp=document.createElement('div');grp.className='pkg-group';
-grp.innerHTML='<div class="pkg-header">'+pkg+' ('+pkgs[pkg].length+')</div>';
-const grid=document.createElement('div');grid.className='lane-grid';
-pkgs[pkg].sort((a,b)=>{const ki=layerOrder.indexOf(a.kind)-layerOrder.indexOf(b.kind);return ki||a.label.localeCompare(b.label)});
-pkgs[pkg].forEach(n=>grid.appendChild(makeCard(n)));
-grp.appendChild(grid);cv.appendChild(grp)})}
-
-function renderFocus(cv){
-if(!selectedId){cv.innerHTML='<div style="color:var(--muted);padding:40px;text-align:center;font-size:.9rem">Click any node to see its full dependency chain</div>';
-const grid=document.createElement('div');grid.className='lane-grid';grid.style.marginTop='20px';
-D.nodes.filter(n=>visibleKinds.has(n.kind)).sort((a,b)=>a.label.localeCompare(b.label)).forEach(n=>grid.appendChild(makeCard(n)));
-cv.appendChild(grid);return}
-const down=getChain(selectedId);const up=getReverseChain(selectedId);
-const all=new Set([...down,...up]);
-const focusNodes=D.nodes.filter(n=>all.has(n.id));
-const layers={};focusNodes.forEach(n=>{if(!layers[n.kind])layers[n.kind]=[];layers[n.kind].push(n)});
-// Title
-cv.innerHTML='<div style="margin-bottom:16px"><span style="color:var(--accent);font-weight:700">'+NM[selectedId].label+'</span><span style="color:var(--muted);margin-left:8px">dependency chain ('+all.size+' nodes)</span><button onclick="selectedId=null;render()" style="margin-left:12px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:.7rem">Clear</button></div>';
-layerOrder.forEach(k=>{const nodes=layers[k];if(!nodes)return;
-const lane=document.createElement('div');lane.className='lane';
-lane.innerHTML='<div class="lane-label '+k+'">'+(layerLabels[k]||k)+'</div>';
-const grid=document.createElement('div');grid.className='lane-grid';
-nodes.forEach(n=>grid.appendChild(makeCard(n,n.id===selectedId?' selected':'')));
-lane.appendChild(grid);cv.appendChild(lane)});
-requestAnimationFrame(()=>drawEdges(cv));
-showDetail(selectedId)}
-
-function renderFlows(cv){
-// Show each handler's full request flow as a visual chain
-const handlers=D.nodes.filter(n=>n.kind==='handler');
-if(!handlers.length){cv.innerHTML='<div style="color:var(--muted);padding:40px">No HTTP handlers found</div>';return}
-cv.innerHTML='<div style="margin-bottom:16px;color:var(--muted);font-size:.8rem">Click any API endpoint to trace the full request flow through services, stores, and models.</div>';
-handlers.sort((a,b)=>{const ar=a.meta?.route||a.label;const br=b.meta?.route||b.label;return ar.localeCompare(br)});
-handlers.forEach(h=>{
-const chain=getChain(h.id);
-const chainNodes=D.nodes.filter(n=>chain.has(n.id)&&n.id!==h.id);
-const div=document.createElement('div');div.style.cssText='margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer';
-div.onclick=()=>{selectedId=h.id;setMode('focus')};
-let title=h.meta?.route||h.label;
-div.innerHTML='<div style="font-weight:700;font-size:.85rem;color:var(--green);margin-bottom:8px">'+title+'</div>';
-if(chainNodes.length===0){div.innerHTML+='<div style="color:var(--muted);font-size:.75rem">No downstream dependencies detected</div>';cv.appendChild(div);return}
-// Show the chain as a flow: handler → service → store → model
-const flow=document.createElement('div');flow.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px';
-flow.innerHTML='<span class="fkind" style="background:'+kindColor.handler+'">'+h.label+'</span>';
-// Group chain by kind
-const byKind={};chainNodes.forEach(n=>{if(!byKind[n.kind])byKind[n.kind]=[];byKind[n.kind].push(n)});
-layerOrder.forEach(k=>{if(!byKind[k])return;
-flow.innerHTML+='<span class="arrow" style="color:var(--muted)">→</span>';
-byKind[k].forEach(n=>{flow.innerHTML+='<span class="fkind" style="background:'+kindColor[k]+'">'+n.label+'</span>'})});
-div.appendChild(flow);cv.appendChild(div)})}
-
-function showDetail(id){
-selectedId=id;
-document.querySelectorAll('.card.selected').forEach(c=>c.classList.remove('selected'));
-const el=document.querySelector('[data-id="'+CSS.escape(id)+'"]');if(el)el.classList.add('selected');
+function renderNodeDetail(id){
 const n=NM[id];if(!n)return;
-const db=document.getElementById('detail');
-let h='<h3>'+n.label+'</h3><div class="detail-badge" style="background:'+kindColor[n.kind]+'">'+n.kind+'</div>';
-h+='<div class="detail-section"><div class="detail-item"><strong>Pkg:</strong> '+n.pkgName+'</div>';
-if(n.file)h+='<div class="detail-item"><strong>File:</strong> '+n.file.split('/').pop()+':'+n.line+'</div></div>';
-const meta=n.meta||{};const mk=Object.keys(meta).filter(k=>meta[k]);
-if(mk.length){h+='<div class="detail-section"><h4>Metadata</h4>';mk.forEach(k=>{h+='<div class="detail-item"><strong>'+k+':</strong> '+meta[k]+'</div>'});h+='</div>'}
-if(n.methods&&n.methods.length){h+='<div class="detail-section"><h4>Methods ('+n.methods.length+')</h4>';n.methods.slice(0,8).forEach(m=>{h+='<div class="detail-item" style="font-family:monospace;font-size:.7rem">'+m+'()</div>'});if(n.methods.length>8)h+='<div class="detail-item">+'+(n.methods.length-8)+' more</div>';h+='</div>'}
-if(n.fields&&n.fields.length){h+='<div class="detail-section"><h4>Fields ('+n.fields.length+')</h4>';n.fields.slice(0,6).forEach(f=>{h+='<div class="detail-item" style="font-family:monospace;font-size:.7rem">'+f+'</div>'});if(n.fields.length>6)h+='<div class="detail-item">+'+(n.fields.length-6)+' more</div>';h+='</div>'}
-const ins=inE[id]||[],outs=outE[id]||[];
-if(ins.length||outs.length){h+='<div class="detail-section"><h4>Connections ('+ins.length+' in, '+outs.length+' out)</h4>';
-ins.forEach(e=>{const s=NM[e.source];h+='<div class="detail-item"><span class="conn-link" onclick="event.stopPropagation();showDetail(\''+e.source.replace(/'/g,"\\'")+'\')">← '+(s?s.label:e.source)+'</span> <span style="color:var(--muted);font-size:.6rem">'+e.kind+'</span></div>'});
-outs.forEach(e=>{const t=NM[e.target];h+='<div class="detail-item"><span class="conn-link" onclick="event.stopPropagation();showDetail(\''+e.target.replace(/'/g,"\\'")+'\')">→ '+(t?t.label:e.target)+'</span> <span style="color:var(--muted);font-size:.6rem">'+e.kind+'</span></div>'});
-h+='</div>'}
-db.innerHTML=h}
+// Show detail in main area below overview — scroll to it
+let detail=document.getElementById('node-detail');
+if(!detail){detail=document.createElement('div');detail.id='node-detail';document.getElementById('main').appendChild(detail)}
+const color=kindColor[n.kind]||'#6b7280';
+let h='<div style="margin-top:24px;padding:20px;background:var(--card);border:1px solid var(--border);border-radius:12px;border-left:4px solid '+color+'">';
+h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="background:'+color+';color:#fff;padding:2px 8px;border-radius:4px;font-size:.6rem;font-weight:700;text-transform:uppercase">'+n.kind+'</span><span style="font-size:1rem;font-weight:700">'+n.label+'</span></div>';
+h+='<div style="font-size:.75rem;color:var(--muted)">'+n.pkg+(n.file?' · '+n.file.split('/').pop()+':'+n.line:'')+'</div>';
+if(n.methods&&n.methods.length){h+='<div style="margin-top:10px"><span style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Methods</span><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">';n.methods.forEach(m=>{h+='<span style="background:var(--surface2);padding:2px 8px;border-radius:4px;font-size:.68rem;font-family:monospace">'+m+'()</span>'});h+='</div></div>'}
+if(n.fields&&n.fields.length){h+='<div style="margin-top:8px"><span style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Fields</span><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">';n.fields.slice(0,12).forEach(f=>{h+='<span style="background:var(--bg);padding:2px 6px;border-radius:3px;font-size:.65rem;font-family:monospace;color:var(--muted)">'+f+'</span>'});h+='</div></div>'}
+const outs=outE[id]||[],ins=inE[id]||[];
+if(outs.length){h+='<div style="margin-top:10px"><span style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Depends on ('+outs.length+')</span><div style="margin-top:4px">';outs.forEach(e=>{const t=NM[e.target];if(t)h+='<a href="#" style="margin-right:10px;font-size:.75rem" onclick="event.preventDefault();selectedNode=\''+e.target.replace(/'/g,"\\'")+'\';renderOverview()"><span style="color:'+kindColor[t.kind]+'">●</span> '+t.label+'</a>'});h+='</div></div>'}
+if(ins.length){h+='<div style="margin-top:8px"><span style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Used by ('+ins.length+')</span><div style="margin-top:4px">';ins.forEach(e=>{const s=NM[e.source];if(s)h+='<a href="#" style="margin-right:10px;font-size:.75rem" onclick="event.preventDefault();selectedNode=\''+e.source.replace(/'/g,"\\'")+'\';renderOverview()"><span style="color:'+kindColor[s.kind]+'">●</span> '+s.label+'</a>'});h+='</div></div>'}
+h+='</div>';detail.innerHTML=h;detail.scrollIntoView({behavior:'smooth'})}
 
-function highlightKind(k){document.querySelectorAll('.card').forEach(c=>{if(c.classList.contains(k))c.classList.add('highlight');else c.classList.remove('highlight')});setTimeout(()=>document.querySelectorAll('.card.highlight').forEach(c=>c.classList.remove('highlight')),2000)}
+// === PACKAGES ===
+function renderPackages(){
+document.getElementById('panel-title').textContent='Packages';
+const pl=document.getElementById('panel-list');pl.innerHTML='';
+const main=document.getElementById('main');main.innerHTML='';
+const pkgs={};D.nodes.forEach(n=>{if(!pkgs[n.pkgName])pkgs[n.pkgName]=[];pkgs[n.pkgName].push(n)});
+Object.keys(pkgs).sort().forEach(pkg=>{
+const nodes=pkgs[pkg];
+const div=document.createElement('div');div.className='ep'+(selectedNode===pkg?' active':'');div.dataset.id=pkg;
+const kinds={};nodes.forEach(n=>{kinds[n.kind]=(kinds[n.kind]||0)+1});
+const summary=Object.entries(kinds).map(([k,v])=>'<span style="color:'+kindColor[k]+'">'+v+' '+k+'</span>').join(' · ');
+div.innerHTML='<span class="path" style="font-family:inherit;font-weight:600">'+pkg+'</span><div class="handler-name">'+nodes.length+' components · '+summary+'</div>';
+div.onclick=()=>{selectedNode=pkg;renderPackages()};
+pl.appendChild(div)});
 
-function doSearch(q){document.querySelectorAll('.card').forEach(c=>c.classList.remove('highlight'));if(!q)return;q=q.toLowerCase();
-let first=true;document.querySelectorAll('.card').forEach(c=>{const nm=c.querySelector('.name').textContent.toLowerCase();if(nm.includes(q)){c.classList.add('highlight');if(first){c.scrollIntoView({behavior:'smooth',block:'center'});first=false}}})}
+if(selectedNode&&pkgs[selectedNode]){
+const nodes=pkgs[selectedNode];
+const sec=document.createElement('div');sec.className='overview-section';
+sec.innerHTML='<h3>'+selectedNode+'<span class="badge">'+nodes.length+' components</span></h3>';
+// Group by kind
+const byKind={};nodes.forEach(n=>{if(!byKind[n.kind])byKind[n.kind]=[];byKind[n.kind].push(n)});
+layerOrder.concat(['struct','func']).forEach(k=>{
+if(!byKind[k])return;
+const sub=document.createElement('div');sub.style.marginBottom='16px';
+sub.innerHTML='<div style="font-size:.7rem;font-weight:600;color:'+kindColor[k]+';margin-bottom:6px;text-transform:uppercase">'+k+'s ('+byKind[k].length+')</div>';
+const grid=document.createElement('div');grid.className='overview-grid';
+byKind[k].sort((a,b)=>a.label.localeCompare(b.label)).forEach(n=>{
+const card=document.createElement('div');card.className='ov-card '+n.kind;
+let sub=n.pkgName;if(n.methods?.length)sub=n.methods.slice(0,2).join(', ');if(n.meta?.route)sub=n.meta.route;
+card.innerHTML='<div class="ov-name">'+n.label+'</div><div class="ov-sub">'+sub+'</div>';
+card.onclick=()=>{selectedNode=n.id;tab='overview';setTab('overview')};
+grid.appendChild(card)});
+sub.appendChild(grid);sec.appendChild(sub)});
+main.appendChild(sec)}
+else{main.innerHTML='<div class="empty"><h2>Select a Package</h2><p>Click a package on the left to explore its components.</p></div>'}}
+
+function filterPanel(){
+const q=document.getElementById('panel-search').value.toLowerCase();
+document.querySelectorAll('.panel-list .ep').forEach(el=>{
+const text=el.textContent.toLowerCase();el.style.display=text.includes(q)?'':'none'})}
 
 render();
 </script>

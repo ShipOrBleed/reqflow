@@ -75,11 +75,20 @@ func PrintSummary(g *Graph, w io.Writer) {
 		fmt.Fprintf(w, "   %s\n", strings.Join(parts, "  |  "))
 	}
 
-	// Routes
+	// Routes — collect all routes (a handler may have multiple via Meta["routes"])
 	var routes []string
+	routeSet := make(map[string]bool)
 	for _, n := range g.Nodes {
-		if route, ok := n.Meta["route"]; ok {
-			routes = append(routes, route)
+		allRoutes := n.Meta["routes"]
+		if allRoutes == "" {
+			allRoutes = n.Meta["route"]
+		}
+		for _, r := range strings.Split(allRoutes, "\n") {
+			r = strings.TrimSpace(r)
+			if r != "" && !routeSet[r] {
+				routeSet[r] = true
+				routes = append(routes, r)
+			}
 		}
 	}
 	if len(routes) > 0 {
