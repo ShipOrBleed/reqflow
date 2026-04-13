@@ -75,9 +75,9 @@ func (c *C4Renderer) Render(g *structmap.Graph, w io.Writer) error {
 	// Edges
 	for _, edge := range g.Edges {
 		relTxt := "Uses"
-		if edge.Type == structmap.EdgeImplements {
+		if edge.Kind == structmap.EdgeImplements {
 			relTxt = "Implements"
-		} else if edge.Type == structmap.EdgeEmbeds {
+		} else if edge.Kind == structmap.EdgeEmbeds {
 			relTxt = "Embeds"
 		}
 		fmt.Fprintf(w, "Rel(%s, %s, \"%s\")\n", safePUMLID(edge.From), safePUMLID(edge.To), relTxt)

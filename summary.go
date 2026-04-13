@@ -46,6 +46,21 @@ func PrintSummary(g *Graph, w io.Writer) {
 	if c := counts[KindInfra]; c > 0 {
 		parts = append(parts, fmt.Sprintf("Infra: %d", c))
 	}
+	if c := counts[KindRoute]; c > 0 {
+		parts = append(parts, fmt.Sprintf("Routes: %d", c))
+	}
+	if c := counts[KindEnvVar]; c > 0 {
+		parts = append(parts, fmt.Sprintf("EnvVars: %d", c))
+	}
+	if c := counts[KindTable]; c > 0 {
+		parts = append(parts, fmt.Sprintf("Tables: %d", c))
+	}
+	if c := counts[KindDep]; c > 0 {
+		parts = append(parts, fmt.Sprintf("Deps: %d", c))
+	}
+	if c := counts[KindContainer]; c > 0 {
+		parts = append(parts, fmt.Sprintf("Containers: %d", c))
+	}
 	if c := counts[KindStruct] + counts[KindInterface] + counts[KindFunc]; c > 0 {
 		parts = append(parts, fmt.Sprintf("Other: %d", c))
 	}
@@ -97,6 +112,10 @@ func GetSummaryHTML(g *Graph) string {
 	addStat("Models", counts[KindModel], "📄")
 	addStat("Events", counts[KindEvent], "📢")
 	addStat("Infra", counts[KindInfra], "☁️")
+	addStat("EnvVars", counts[KindEnvVar], "🔑")
+	addStat("Tables", counts[KindTable], "🗃️")
+	addStat("Deps", counts[KindDep], "📎")
+	addStat("Containers", counts[KindContainer], "🐳")
 	
 	sb.WriteString("</div>")
 	return sb.String()

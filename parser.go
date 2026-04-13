@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
+	"os"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -11,25 +12,47 @@ import (
 
 // ParseOptions allows configuring the parser
 type ParseOptions struct {
-	Dir    string
-	Filter string
-	Focus  string
-	Config *GovisConfig
+	Dir        string
+	Filter     string
+	Focus      string
+	Config     *GovisConfig
+	APIMap     bool
+	Heatmap    bool
+	CallGraph  bool
+	DataFlow   bool
+	EnvMap     bool
+	TableMap   bool
+	DepTree    bool
+	InfraTopo  bool
 }
 
 // Parse loads Go packages from the target directory and builds the
 // full architecture graph through a multi-pass analysis pipeline.
 func Parse(opts ParseOptions) (*Graph, error) {
-	cfg := &packages.Config{
-		Mode: packages.NeedName |
-			packages.NeedSyntax |
-			packages.NeedTypes |
-			packages.NeedTypesInfo |
-			packages.NeedImports,
-		Dir: opts.Dir,
+	mode := packages.NeedName |
+		packages.NeedSyntax |
+		packages.NeedTypes |
+		packages.NeedTypesInfo |
+		packages.NeedImports
+
+	if opts.CallGraph {
+		mode |= packages.NeedDeps
 	}
 
-	pkgs, err := packages.Load(cfg, "./...")
+	dir := opts.Dir
+	pattern := "./..."
+	if dir == "./..." || dir == "" {
+		dir = "."
+	} else if strings.HasSuffix(dir, "/...") {
+		dir = strings.TrimSuffix(dir, "/...")
+	}
+
+	cfg := &packages.Config{
+		Mode: mode,
+		Dir:  dir,
+	}
+
+	pkgs, err := packages.Load(cfg, pattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load packages: %w", err)
 	}
@@ -65,9 +88,47 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	ExtractMiddleware(pkgs, graph)
 	ExtractGRPC(pkgs, graph)
 
+	// Pass 3b: API surface map (request/response type extraction)
+	if opts.APIMap {
+		ExtractAPIMap(pkgs, graph)
+	}
+
+	// Pass 3c: Call graph visualization
+	if opts.CallGraph {
+		modulePath := getModulePath(opts.Dir)
+		if modulePath != "" {
+			ExtractCallGraph(pkgs, graph, modulePath)
+		}
+	}
+
+	// Pass 3d: Data flow extraction
+	if opts.DataFlow {
+		ExtractDataFlows(graph)
+	}
+
 	// Pass 4: Infrastructure & external topology
-	parseVitessSchema(opts.Dir, graph)
-	ExtractGoModDeps(opts.Dir, graph)
+	parseVitessSchema(dir, graph)
+	ExtractGoModDeps(dir, graph)
+
+	// Pass 4b: Environment variable map
+	if opts.EnvMap {
+		ExtractEnvMap(pkgs, graph)
+	}
+
+	// Pass 4c: Model-to-table mapping
+	if opts.TableMap {
+		ExtractTableMap(pkgs, graph)
+	}
+
+	// Pass 4d: Full go.mod dependency tree
+	if opts.DepTree {
+		ExtractDepTree(dir, graph)
+	}
+
+	// Pass 4e: Docker/K8s infrastructure topology
+	if opts.InfraTopo {
+		ExtractInfraTopo(dir, graph)
+	}
 
 	// Pass 5: Runtime pattern detection
 	DetectConcurrency(pkgs, graph)
@@ -333,6 +394,25 @@ func resolveDependencies(graph *Graph) {
 			}
 		}
 	}
+}
+
+// getModulePath extracts the module path from go.mod in the given directory.
+func getModulePath(dir string) string {
+	modDir := dir
+	if modDir == "./..." || modDir == "" {
+		modDir = "."
+	}
+	data, err := os.ReadFile(modDir + "/go.mod")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module"))
+		}
+	}
+	return ""
 }
 
 var (

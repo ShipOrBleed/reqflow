@@ -24,7 +24,7 @@ func Stitch(graphs []*Graph) *Graph {
 
 		// Merge edges
 		for _, edge := range g.Edges {
-			base.AddEdge(edge.From, edge.To, edge.Type)
+			base.AddEdge(edge.From, edge.To, edge.Kind)
 		}
 
 		// Merge clusters

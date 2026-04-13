@@ -64,7 +64,7 @@ func (d *DSMRenderer) Render(g *structmap.Graph, w io.Writer) error {
 				// Find edge type
 				for _, e := range g.Edges {
 					if e.From == rowID && e.To == colID {
-						if e.Type == structmap.EdgeImplements {
+						if e.Kind == structmap.EdgeImplements {
 							fmt.Print("  I")
 						} else {
 							fmt.Print("  X")

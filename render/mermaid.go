@@ -44,6 +44,24 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 			fmt.Fprintf(w, "  %s --> %s : depends\n", fromID, toID)
 		case structmap.EdgeEmbeds:
 			fmt.Fprintf(w, "  %s --|> %s : embeds\n", fromID, toID)
+		case structmap.EdgeCalls:
+			fmt.Fprintf(w, "  %s -..-> %s : calls\n", fromID, toID)
+		case structmap.EdgeFlows:
+			fmt.Fprintf(w, "  %s ===> %s : flows\n", fromID, toID)
+		case structmap.EdgeReads:
+			fmt.Fprintf(w, "  %s -.-> %s : reads\n", fromID, toID)
+		case structmap.EdgeMapsTo:
+			fmt.Fprintf(w, "  %s --o %s : maps_to\n", fromID, toID)
+		case structmap.EdgePublishes:
+			fmt.Fprintf(w, "  %s -..-> %s : publishes\n", fromID, toID)
+		case structmap.EdgeSubscribes:
+			fmt.Fprintf(w, "  %s <-..- %s : subscribes\n", fromID, toID)
+		case structmap.EdgeRPC:
+			fmt.Fprintf(w, "  %s <==> %s : rpc\n", fromID, toID)
+		case structmap.EdgeTransitive:
+			fmt.Fprintf(w, "  %s -.-> %s : transitive\n", fromID, toID)
+		default:
+			fmt.Fprintf(w, "  %s --> %s\n", fromID, toID)
 		}
 	}
 
@@ -59,6 +77,9 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "  classDef infra fill:#e8daef,stroke:#6c3483,color:#6c3483")
 	fmt.Fprintln(w, "  classDef diffnew fill:#d4edda,stroke:#28a745,color:#155724,stroke-width:4px,stroke-dasharray: 5 5")
 	fmt.Fprintln(w, "  classDef diffdel fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:4px,stroke-dasharray: 5 5")
+	fmt.Fprintln(w, "  classDef coverCritical fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:3px")
+	fmt.Fprintln(w, "  classDef coverLow fill:#fff3cd,stroke:#ffc107,color:#856404,stroke-width:3px")
+	fmt.Fprintln(w, "  classDef coverHealthy fill:#d4edda,stroke:#28a745,color:#155724,stroke-width:3px")
 	
 	for _, node := range g.Nodes {
 		if node.Meta["diff"] == "new" {
@@ -88,6 +109,18 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 			fmt.Fprintf(w, "  class %s infra\n", sanitizeID(node.ID))
 		}
 		
+		// Coverage heatmap overlay (overrides kind color when coverage data exists)
+		if risk, ok := node.Meta["coverage_risk"]; ok {
+			switch risk {
+			case "critical":
+				fmt.Fprintf(w, "  class %s coverCritical\n", sanitizeID(node.ID))
+			case "low":
+				fmt.Fprintf(w, "  class %s coverLow\n", sanitizeID(node.ID))
+			case "healthy":
+				fmt.Fprintf(w, "  class %s coverHealthy\n", sanitizeID(node.ID))
+			}
+		}
+
 		// 🔗 IDE Deep Links (Click-To-Code)
 		if node.File != "" && node.Line > 0 {
 			// Generate direct vscode file link

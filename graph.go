@@ -6,14 +6,21 @@ const (
 	KindStruct    NodeKind = "struct"
 	KindInterface NodeKind = "interface"
 	KindFunc      NodeKind = "func"
-	KindHandler   NodeKind = "handler" // HTTP handler
-	KindStore      NodeKind = "store"      // DB layer / Repository
-	KindModel      NodeKind = "model"      // DB entity / Model
-	KindService    NodeKind = "service"    // Business logic
-	KindEvent      NodeKind = "event"      // Event Bus (Kafka/Rabbit)
+	KindHandler   NodeKind = "handler"    // HTTP handler
+	KindStore     NodeKind = "store"      // DB layer / Repository
+	KindModel     NodeKind = "model"      // DB entity / Model
+	KindService   NodeKind = "service"    // Business logic
+	KindEvent     NodeKind = "event"      // Event Bus (Kafka/Rabbit)
 	KindMiddleware NodeKind = "middleware" // HTTP Middleware
-	KindGRPC       NodeKind = "grpc"       // gRPC service
-	KindInfra      NodeKind = "infra"      // External infrastructure
+	KindGRPC      NodeKind = "grpc"       // gRPC service
+	KindInfra     NodeKind = "infra"      // External infrastructure
+	KindRoute     NodeKind = "route"      // API endpoint
+	KindEnvVar    NodeKind = "envvar"     // Environment variable
+	KindTable     NodeKind = "table"      // Database table
+	KindDep       NodeKind = "dependency" // go.mod transitive dependency
+	KindContainer NodeKind = "container"  // Docker/K8s container
+	KindProtoRPC  NodeKind = "proto_rpc"  // Proto RPC method
+	KindProtoMsg  NodeKind = "proto_msg"  // Proto message type
 )
 
 type Node struct {
@@ -36,6 +43,14 @@ const (
 	EdgeEmbeds     EdgeKind = "embeds"
 	EdgeImplements EdgeKind = "implements"
 	EdgeDepends    EdgeKind = "depends"
+	EdgeCalls      EdgeKind = "calls"      // function-to-function call
+	EdgeFlows      EdgeKind = "flows"      // request data flow (handler→service→store)
+	EdgeReads      EdgeKind = "reads"      // reads env var
+	EdgeMapsTo     EdgeKind = "maps_to"    // model→table mapping
+	EdgeTransitive EdgeKind = "transitive" // transitive dependency
+	EdgePublishes  EdgeKind = "publishes"  // event publish
+	EdgeSubscribes EdgeKind = "subscribes" // event subscribe
+	EdgeRPC        EdgeKind = "rpc"        // cross-service RPC call
 )
 
 type Edge struct {
@@ -47,12 +62,14 @@ type Graph struct {
 	Nodes    map[string]*Node
 	Edges    []Edge
 	Clusters map[string][]string // pkg path → []node IDs
+	Meta     map[string]string   // graph-level metadata (repo name, commit SHA, etc.)
 }
 
 func NewGraph() *Graph {
 	return &Graph{
 		Nodes:    make(map[string]*Node),
 		Clusters: make(map[string][]string),
+		Meta:     make(map[string]string),
 	}
 }
 

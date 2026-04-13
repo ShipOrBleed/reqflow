@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -25,7 +26,7 @@ func Execute() {
 	}
 
 	// ---- Flag Definitions ----
-	format := flag.String("format", "mermaid", "Output format: mermaid, c4, dsm, dot, html, json, markdown, svg")
+	format := flag.String("format", "mermaid", "Output format: mermaid, c4, dsm, dot, html, interactive, json, markdown, svg")
 	out := flag.String("out", "", "Output file (default: stdout)")
 	stitch := flag.String("stitch", "", "Stitch multiple JSON architecture exports (comma-separated files)")
 	serve := flag.String("serve", "", "Start a live HTTP visualization server (e.g., ':8080')")
@@ -43,6 +44,14 @@ func Execute() {
 	coverFile := flag.String("cover", "", "Path to Go coverage profile (cover.out)")
 	constructors := flag.Bool("constructors", false, "Detect missing New*() constructors")
 	fullAudit := flag.Bool("audit", false, "Run ALL analysis checks at once")
+	apiMap := flag.Bool("apimap", false, "Generate full API surface map with request/response types")
+	heatmap := flag.Bool("heatmap", false, "Overlay coverage data as heatmap colors on graph nodes")
+	callGraph := flag.Bool("callgraph", false, "Visualize function-to-function call graph")
+	dataFlow := flag.Bool("dataflow", false, "Visualize request data flow (handler→service→store)")
+	envMap := flag.Bool("envmap", false, "Visualize environment variable usage across the codebase")
+	tableMap := flag.Bool("tablemap", false, "Visualize model-to-database-table mappings")
+	depTree := flag.Bool("deptree", false, "Visualize full go.mod transitive dependency tree")
+	infraTopo := flag.Bool("infratopo", false, "Visualize Docker/K8s infrastructure topology")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
@@ -69,6 +78,14 @@ func Execute() {
 		Filter: *filter,
 		Focus:  *focus,
 		Config: loadedConfig,
+		APIMap:    *apiMap,
+		Heatmap:   *heatmap,
+		CallGraph:  *callGraph,
+		DataFlow:   *dataFlow,
+		EnvMap:     *envMap,
+		TableMap:   *tableMap,
+		DepTree:    *depTree,
+		InfraTopo:  *infraTopo,
 	}
 
 	// ---- Full Audit Mode ----
@@ -138,10 +155,16 @@ func Execute() {
 	// ---- Render Output ----
 	var r render.Renderer
 	switch *format {
+	case "apimap":
+		r = &render.APIMapRenderer{}
+	case "dataflow":
+		r = &render.DataFlowRenderer{}
 	case "json":
 		r = &render.JSONRenderer{}
 	case "html":
 		r = &render.HTMLRenderer{}
+	case "interactive":
+		r = &render.InteractiveRenderer{}
 	case "mermaid":
 		r = &render.MermaidRenderer{}
 	case "markdown", "md":
@@ -204,6 +227,7 @@ func handleStitch(filesStr, format, outPath string) {
 	switch format {
 	case "json": r = &render.JSONRenderer{}
 	case "html": r = &render.HTMLRenderer{}
+	case "interactive": r = &render.InteractiveRenderer{}
 	case "mermaid": r = &render.MermaidRenderer{}
 	case "markdown", "md": r = &render.MarkdownRenderer{}
 	case "c4": r = &render.C4Renderer{}
