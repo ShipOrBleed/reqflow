@@ -1,0 +1,423 @@
+package render
+
+import (
+	"fmt"
+	"io"
+	"strings"
+
+	govis "github.com/thzgajendra/govis"
+)
+
+// TraceRenderer renders a single request-path trace as a focused,
+// readable terminal output or HTML page.
+type TraceRenderer struct {
+	Format string // "text" (default) or "html"
+}
+
+// traceIcon returns a single-letter badge for each node kind (used in trace output).
+func traceIcon(k govis.NodeKind) string {
+	switch k {
+	case govis.KindHandler:
+		return "H"
+	case govis.KindService:
+		return "S"
+	case govis.KindStore:
+		return "D"
+	case govis.KindModel:
+		return "M"
+	case govis.KindInterface:
+		return "I"
+	case govis.KindGRPC:
+		return "G"
+	case govis.KindEvent:
+		return "E"
+	case govis.KindMiddleware:
+		return "MW"
+	default:
+		return "?"
+	}
+}
+
+// kindLabel returns a human-readable layer name.
+func kindLabel(k govis.NodeKind) string {
+	switch k {
+	case govis.KindHandler:
+		return "HTTP Handler"
+	case govis.KindService:
+		return "Service"
+	case govis.KindStore:
+		return "Store / Repository"
+	case govis.KindModel:
+		return "Data Model"
+	case govis.KindInterface:
+		return "Interface"
+	case govis.KindGRPC:
+		return "gRPC Service"
+	case govis.KindEvent:
+		return "Event / Topic"
+	case govis.KindMiddleware:
+		return "Middleware"
+	default:
+		return string(k)
+	}
+}
+
+// RenderTrace writes a TraceResult to w in either text or HTML format.
+func (tr *TraceRenderer) RenderTrace(result *govis.TraceResult, w io.Writer) error {
+	if tr.Format == "html" {
+		return renderTraceHTML(result, w)
+	}
+	return renderTraceText(result, w)
+}
+
+// ─── Terminal (text) renderer ────────────────────────────────────────────────
+
+const (
+	reset  = "\033[0m"
+	bold   = "\033[1m"
+	dim    = "\033[2m"
+	red    = "\033[31m"
+	green  = "\033[32m"
+	yellow = "\033[33m"
+	blue   = "\033[34m"
+	cyan   = "\033[36m"
+	white  = "\033[37m"
+	gray   = "\033[90m"
+)
+
+var kindColor = map[govis.NodeKind]string{
+	govis.KindHandler:   green,
+	govis.KindService:   blue,
+	govis.KindStore:     yellow,
+	govis.KindModel:     red,
+	govis.KindInterface: cyan,
+	govis.KindGRPC:      cyan,
+	govis.KindEvent:     gray,
+}
+
+func color(k govis.NodeKind) string {
+	if c, ok := kindColor[k]; ok {
+		return c
+	}
+	return white
+}
+
+func renderTraceText(r *govis.TraceResult, w io.Writer) error {
+	if r.NotFound {
+		fmt.Fprintf(w, "\n%s✗ No handler found matching: %q%s\n\n", red, r.Route, reset)
+		fmt.Fprintf(w, "  Hint: run  govis -format json ./...  and search Meta[\"routes\"]\n")
+		fmt.Fprintf(w, "        to see all registered routes.\n\n")
+		return nil
+	}
+
+	fmt.Fprintf(w, "\n%s%s%s\n", bold, r.Route, reset)
+	fmt.Fprintf(w, "%s%s%s\n\n", gray, strings.Repeat("─", len(r.Route)+2), reset)
+
+	for i, node := range r.Chain {
+		c := color(node.Kind)
+		icon := traceIcon(node.Kind)
+		label := kindLabel(node.Kind)
+
+		// Arrow between steps
+		if i > 0 {
+			prev := r.Chain[i-1]
+			edgeLabel := govis.EdgeLabel(prev, node)
+			fmt.Fprintf(w, "  %s│%s\n", gray, reset)
+			fmt.Fprintf(w, "  %s↓  %s%s\n", gray, edgeLabel, reset)
+			fmt.Fprintf(w, "  %s│%s\n", gray, reset)
+		}
+
+		// Node header
+		fmt.Fprintf(w, "  %s[%s]%s  %s%s%s", c, icon, reset, bold, node.Name, reset)
+		fmt.Fprintf(w, "  %s%s · %s%s\n", gray, label, shortFile(node.File, node.Line), reset)
+
+		// Package
+		if node.Package != "" {
+			pkg := node.Package
+			parts := strings.Split(pkg, "/")
+			if len(parts) > 3 {
+				pkg = "…/" + strings.Join(parts[len(parts)-3:], "/")
+			}
+			fmt.Fprintf(w, "       %s%s%s\n", gray, pkg, reset)
+		}
+
+		// Methods
+		if len(node.Methods) > 0 {
+			methods := node.Methods
+			if len(methods) > 6 {
+				methods = append(methods[:6], fmt.Sprintf("+%d more", len(node.Methods)-6))
+			}
+			fmt.Fprintf(w, "       Methods: %s%s%s\n", cyan, strings.Join(methods, "(), ")+fmt.Sprintf("()"), reset)
+		}
+
+		// Fields for models
+		if node.Kind == govis.KindModel && len(node.Fields) > 0 {
+			fields := make([]string, 0, len(node.Fields))
+			for _, f := range node.Fields {
+				if f.Name != "" && !strings.Contains(f.Name, ".") {
+					fields = append(fields, f.Name)
+				}
+			}
+			if len(fields) > 8 {
+				fields = append(fields[:8], fmt.Sprintf("+%d", len(fields)-8))
+			}
+			if len(fields) > 0 {
+				fmt.Fprintf(w, "       Fields:  %s%s%s\n", gray, strings.Join(fields, ", "), reset)
+			}
+		}
+
+		// Route for handler
+		if node.Kind == govis.KindHandler {
+			routes := routeList(node)
+			if len(routes) > 1 {
+				fmt.Fprintf(w, "       All routes (%d): %s%s%s\n", len(routes), gray, strings.Join(routes[:min(3, len(routes))], ", "), reset)
+				if len(routes) > 3 {
+					fmt.Fprintf(w, "                       %s…%s\n", gray, reset)
+				}
+			}
+		}
+
+		fmt.Fprintln(w)
+	}
+
+	// Tables
+	if len(r.Tables) > 0 {
+		fmt.Fprintf(w, "  %s┌─ Database tables%s\n", yellow, reset)
+		for _, t := range r.Tables {
+			fmt.Fprintf(w, "  %s│   %s%s%s\n", yellow, bold, t, reset)
+		}
+		fmt.Fprintf(w, "  %s└─%s\n\n", yellow, reset)
+	}
+
+	// Env vars
+	if len(r.EnvVars) > 0 {
+		fmt.Fprintf(w, "  %s┌─ Environment variables%s\n", cyan, reset)
+		for _, v := range r.EnvVars {
+			fmt.Fprintf(w, "  %s│   %s%s\n", cyan, v, reset)
+		}
+		fmt.Fprintf(w, "  %s└─%s\n\n", cyan, reset)
+	}
+
+	if len(r.Chain) <= 1 {
+		fmt.Fprintf(w, "  %sNote: Only the handler was found. Dependencies may use patterns%s\n", gray, reset)
+		fmt.Fprintf(w, "  %s      not yet detected by GoVis (interface injection, closures).%s\n\n", gray, reset)
+	}
+
+	return nil
+}
+
+func shortFile(file string, line int) string {
+	if file == "" {
+		return ""
+	}
+	parts := strings.Split(file, "/")
+	if len(parts) > 2 {
+		parts = parts[len(parts)-2:]
+	}
+	if line > 0 {
+		return strings.Join(parts, "/") + fmt.Sprintf(":%d", line)
+	}
+	return strings.Join(parts, "/")
+}
+
+func routeList(n *govis.Node) []string {
+	raw := n.Meta["routes"]
+	if raw == "" {
+		raw = n.Meta["route"]
+	}
+	var out []string
+	for _, r := range strings.Split(raw, "\n") {
+		if r = strings.TrimSpace(r); r != "" {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// ─── HTML renderer ────────────────────────────────────────────────────────────
+
+func renderTraceHTML(r *govis.TraceResult, w io.Writer) error {
+	if r.NotFound {
+		fmt.Fprintf(w, `<!DOCTYPE html><html><body style="font-family:monospace;padding:40px">
+<h2 style="color:#f87171">✗ No handler found matching %q</h2>
+<p>Run <code>govis -format json ./...</code> and search Meta["routes"] to see all registered routes.</p>
+</body></html>`, r.Route)
+		return nil
+	}
+
+	steps := buildHTMLSteps(r)
+	extras := buildHTMLExtras(r)
+
+	fmt.Fprintf(w, traceHTMLTmpl, r.Route, r.Route, steps, extras)
+	return nil
+}
+
+func buildHTMLSteps(r *govis.TraceResult) string {
+	var sb strings.Builder
+	for i, node := range r.Chain {
+		c := htmlKindColor(node.Kind)
+		icon := traceIcon(node.Kind)
+		label := kindLabel(node.Kind)
+
+		if i > 0 {
+			prev := r.Chain[i-1]
+			edge := govis.EdgeLabel(prev, node)
+			sb.WriteString(`<div class="arrow">↓ ` + edge + `</div>`)
+		}
+
+		sb.WriteString(`<div class="step">`)
+		sb.WriteString(fmt.Sprintf(`<div class="step-icon" style="background:%s">%s</div>`, c, icon))
+		sb.WriteString(`<div class="step-body">`)
+		sb.WriteString(fmt.Sprintf(`<div class="step-kind" style="color:%s">%s</div>`, c, label))
+		sb.WriteString(fmt.Sprintf(`<div class="step-name">%s</div>`, node.Name))
+
+		var details []string
+		if node.Package != "" {
+			pkgParts := strings.Split(node.Package, "/")
+			pkg := node.Package
+			if len(pkgParts) > 3 {
+				pkg = "…/" + strings.Join(pkgParts[len(pkgParts)-2:], "/")
+			}
+			details = append(details, `<code>`+pkg+`</code>`)
+		}
+		if node.File != "" {
+			details = append(details, `<code>`+shortFile(node.File, node.Line)+`</code>`)
+		}
+		if len(details) > 0 {
+			sb.WriteString(`<div class="step-meta">` + strings.Join(details, " · ") + `</div>`)
+		}
+
+		// Methods
+		if len(node.Methods) > 0 {
+			sb.WriteString(`<div class="step-methods">`)
+			methods := node.Methods
+			if len(methods) > 8 {
+				methods = methods[:8]
+			}
+			for _, m := range methods {
+				sb.WriteString(`<span class="method-badge">` + m + `()</span>`)
+			}
+			if len(node.Methods) > 8 {
+				sb.WriteString(fmt.Sprintf(`<span class="method-badge muted">+%d more</span>`, len(node.Methods)-8))
+			}
+			sb.WriteString(`</div>`)
+		}
+
+		// Fields for models
+		if node.Kind == govis.KindModel && len(node.Fields) > 0 {
+			sb.WriteString(`<div class="step-fields">`)
+			for i, f := range node.Fields {
+				if i >= 10 || strings.Contains(f.Name, ".") {
+					break
+				}
+				sb.WriteString(`<span class="field-badge">` + f.Name + `</span>`)
+			}
+			if len(node.Fields) > 10 {
+				sb.WriteString(fmt.Sprintf(`<span class="field-badge muted">+%d</span>`, len(node.Fields)-10))
+			}
+			sb.WriteString(`</div>`)
+		}
+
+		sb.WriteString(`</div></div>`) // close step-body, step
+	}
+	return sb.String()
+}
+
+func buildHTMLExtras(r *govis.TraceResult) string {
+	if len(r.Tables) == 0 && len(r.EnvVars) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString(`<div class="extras">`)
+	if len(r.Tables) > 0 {
+		sb.WriteString(`<div class="extra-section"><h4>📦 Database Tables</h4>`)
+		for _, t := range r.Tables {
+			sb.WriteString(`<span class="table-badge">` + t + `</span>`)
+		}
+		sb.WriteString(`</div>`)
+	}
+	if len(r.EnvVars) > 0 {
+		sb.WriteString(`<div class="extra-section"><h4>🔑 Environment Variables</h4>`)
+		for _, v := range r.EnvVars {
+			sb.WriteString(`<span class="env-badge">` + v + `</span>`)
+		}
+		sb.WriteString(`</div>`)
+	}
+	sb.WriteString(`</div>`)
+	return sb.String()
+}
+
+func htmlKindColor(k govis.NodeKind) string {
+	switch k {
+	case govis.KindHandler:
+		return "#34d399"
+	case govis.KindService:
+		return "#60a5fa"
+	case govis.KindStore:
+		return "#fbbf24"
+	case govis.KindModel:
+		return "#f87171"
+	case govis.KindInterface:
+		return "#a78bfa"
+	case govis.KindGRPC:
+		return "#2dd4bf"
+	default:
+		return "#6b7280"
+	}
+}
+
+var traceHTMLTmpl = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GoVis Trace — %s</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;padding:48px 24px}
+.container{max-width:680px;margin:0 auto}
+.header{margin-bottom:40px}
+.header .label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:8px}
+.header h1{font-size:1.6rem;font-weight:800;color:#e2e8f0;font-family:monospace}
+.header p{font-size:.8rem;color:#6b7280;margin-top:8px}
+.step{display:flex;gap:16px;padding:20px;background:#1a1e28;border:1px solid #262a36;border-radius:12px;position:relative}
+.step-icon{width:36px;height:36px;border-radius:50%%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;color:#fff;flex-shrink:0;margin-top:2px}
+.step-body{flex:1;min-width:0}
+.step-kind{font-size:.6rem;text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:4px}
+.step-name{font-size:1rem;font-weight:700;margin-bottom:6px}
+.step-meta{font-size:.7rem;color:#6b7280;margin-bottom:8px}
+.step-meta code{background:#262a36;padding:2px 6px;border-radius:3px;font-size:.65rem}
+.step-methods{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.method-badge{background:#1f2937;border:1px solid #374151;padding:2px 8px;border-radius:4px;font-size:.65rem;font-family:monospace;color:#d1d5db}
+.step-fields{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.field-badge{background:#0f1117;padding:2px 6px;border-radius:3px;font-size:.62rem;font-family:monospace;color:#6b7280}
+.muted{opacity:.6}
+.arrow{padding:12px 0 12px 52px;color:#374151;font-size:.72rem;font-style:italic}
+.extras{margin-top:40px;padding-top:24px;border-top:1px solid #1f2937}
+.extra-section{margin-bottom:20px}
+.extra-section h4{font-size:.75rem;font-weight:700;margin-bottom:10px;color:#9ca3af}
+.table-badge{display:inline-block;background:#292524;border:1px solid #57534e;padding:4px 12px;border-radius:6px;font-size:.75rem;font-family:monospace;color:#fbbf24;margin-right:8px;margin-bottom:6px}
+.env-badge{display:inline-block;background:#172554;border:1px solid #1e3a8a;padding:4px 12px;border-radius:6px;font-size:.75rem;font-family:monospace;color:#93c5fd;margin-right:8px;margin-bottom:6px}
+.govis-link{margin-top:48px;text-align:right;font-size:.65rem;color:#374151}
+.govis-link a{color:#374151;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div class="label">GOVIS TRACE</div>
+<h1>%s</h1>
+<p>Complete static request path through your Go codebase</p>
+</div>
+%s
+%s
+<div class="govis-link"><a href="https://github.com/thzgajendra/govis">govis</a></div>
+</div>
+</body>
+</html>`

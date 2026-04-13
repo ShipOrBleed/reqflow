@@ -1,258 +1,230 @@
-# Govis
+# govis
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/thzgajendra/govis.svg)](https://pkg.go.dev/github.com/thzgajendra/govis)
 [![Go Report Card](https://goreportcard.com/badge/github.com/thzgajendra/govis)](https://goreportcard.com/report/github.com/thzgajendra/govis)
 [![CI](https://github.com/thzgajendra/govis/actions/workflows/ci.yml/badge.svg)](https://github.com/thzgajendra/govis/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**Go architecture visualizer.** Parses Go ASTs to build dependency graphs, detect architectural layers, and render interactive visualizations in 14 output formats.
+**Trace any HTTP request through your Go codebase, statically.**
 
 ```bash
-go install github.com/thzgajendra/govis/cmd/govis@latest
-cd your-go-project
-govis -format interactive ./...
+govis trace "POST /orders" ./...
 ```
 
-Open the generated HTML in your browser to see a force-directed, clickable architecture graph of your entire codebase.
+Shows you the complete path: handler → service → store → database table → external calls.
+No instrumentation. No runtime. Just point it at your code.
 
 ---
 
-## What It Does
+## The Problem
 
-Govis statically analyzes your Go codebase and produces:
+You just joined a team. There's a bug in `POST /orders`. Where do you even start?
 
-- **Dependency graphs** with auto-detected layers (handlers, services, stores, models)
-- **Interactive HTML dashboards** with drag, zoom, filter, and click-to-inspect
-- **Call graphs** via SSA analysis (function-to-function call paths)
-- **Data flow diagrams** (request lifecycle: handler -> service -> store)
-- **API surface maps** with request/response types
-- **Infrastructure topology** (Docker, K8s, env vars, database tables, go.mod tree)
-- **Git insights** (code churn heatmap, contributor map, PR impact analysis)
-- **Multi-repo views** (stitch microservices, proto/gRPC contracts, event topology)
-- **Architecture diffs** between git branches
+You grep for the route, find the handler, cmd-click into the service, cmd-click again into the repo, then go look at struct tags to figure out what database table it's writing to. You do this every time, for every repo, for every bug.
 
-No competing tool combines visualization + analysis + multi-format output in a single binary with zero config.
+**govis automates that entire workflow.**
 
 ---
 
 ## Quick Start
 
-### Install
-
 ```bash
 go install github.com/thzgajendra/govis/cmd/govis@latest
 ```
 
-### Basic Usage
+### Trace a request path
 
 ```bash
-# Interactive force-directed graph (open in browser)
-govis -format interactive -out arch.html ./...
+# Show what happens when POST /orders is called
+govis trace "POST /orders" ./...
 
-# Mermaid diagram (renders in GitHub, Notion, etc.)
-govis -format mermaid ./...
+# Partial match — finds any route containing "orders"
+govis trace "orders" ./...
 
-# Live development server (auto-reloads on refresh)
-govis -serve=":8080" ./...
-
-# Full architecture audit
-govis -audit ./...
+# Output as self-contained HTML
+govis trace -format html -out trace.html "POST /orders" ./...
 ```
 
-### Use as a Library
+**Example output:**
 
-```go
-import "github.com/thzgajendra/govis"
+```
+POST /orders
+────────────
 
-graph, err := govis.Parse(govis.ParseOptions{Dir: "."})
-// graph.Nodes, graph.Edges, graph.Clusters are ready to use
+  [H]  OrderHandler          HTTP Handler · handler/orders.go:45
+       …/internal/handler
+       Methods: CreateOrder(), GetOrder(), ListOrders()
+
+  │
+  ↓  delegates to
+  │
+  [S]  OrderService          Service · service/orders.go:23
+       …/internal/service
+       Methods: Create(), FindByID(), List(), Cancel()
+
+  │
+  ↓  queries via
+  │
+  [D]  OrderStore            Store / Repository · store/orders.go:67
+       …/internal/store
+       Methods: Insert(), Select(), Update(), Delete()
+
+  │
+  ↓  maps to model
+  │
+  [M]  Order                 Data Model · model/order.go:12
+       …/internal/model
+       Fields: ID, CustomerID, Status, Total, CreatedAt
+
+  ┌─ Database tables
+  │   orders
+  └─
 ```
 
 ---
 
-## Output Formats
+## Interactive Explorer
 
-| Format | Flag | Description |
-|--------|------|-------------|
-| **Interactive** | `-format interactive` | Cytoscape.js force-directed graph with drag, zoom, filter, click-to-inspect |
-| **3D** | `-format 3d` | Three.js 3D visualization with orbit controls |
-| **HTML** | `-format html` | Mermaid-based dashboard with dark theme and pan/zoom |
-| **Mermaid** | `-format mermaid` | Class diagram with color-coded layers and VS Code deep links |
-| **Excalidraw** | `-format excalidraw` | Editable `.excalidraw` diagram for whiteboard sessions |
-| **C4** | `-format c4` | PlantUML C4 model for enterprise architecture docs |
-| **Markdown** | `-format markdown` | Documentation with tables, icons, and metrics |
-| **DOT** | `-format dot` | Graphviz format for SVG/PNG export |
-| **DSM** | `-format dsm` | Dependency Structure Matrix for coupling analysis |
-| **JSON** | `-format json` | Raw graph for programmatic consumption |
-| **PDF** | `-format pdf` | Graphviz-rendered PDF (requires `dot` installed) |
-| **Embed** | `-format embed` | Self-contained HTML snippet for Notion/Confluence |
-| **API Map** | `-format apimap` | Table of all endpoints with request/response types |
-| **Data Flow** | `-format dataflow` | Mermaid sequence diagram of request lifecycle |
+For a full visual overview of your codebase:
+
+```bash
+govis -format interactive -out explorer.html ./...
+open explorer.html
+```
+
+**Explore APIs tab** (default) — lists every HTTP endpoint. Click any to trace its flow step-by-step through the codebase.
+
+**Architecture tab** — layered view: Handlers → Services → Stores → Models, click any node for full detail.
+
+**Packages tab** — browse by Go package, see what components live in each one.
 
 ---
 
-## Analysis Features
+## All Commands
 
-### Architecture Visualization
+### Trace (primary feature)
+
 ```bash
-govis -format interactive ./...     # Force-directed graph
-govis -callgraph -format mermaid    # Function call graph (SSA + CHA)
-govis -dataflow -format dataflow    # Handler -> Service -> Store flows
-govis -apimap -format apimap        # API surface with req/resp types
+govis trace [flags] <route> [packages]
+
+Flags:
+  -format text|html    Output format (default: text)
+  -out <file>          Write to file instead of stdout
+  -tablemap            Resolve model → database table mappings
+  -envmap              Resolve environment variable reads
+
+Examples:
+  govis trace "POST /orders" ./...
+  govis trace "/orders" ./...                     # path-only, any method
+  govis trace -format html -out t.html "orders"   # partial match, HTML output
 ```
 
-### Infrastructure Mapping
+### Visualize
+
 ```bash
-govis -envmap ./...                 # Environment variable usage map
-govis -tablemap ./...               # Model-to-database-table mapping (GORM/sqlx)
-govis -deptree ./...                # Full go.mod transitive dependency tree
-govis -infratopo ./...              # Docker/K8s infrastructure topology
-govis -proto ./...                  # Parse .proto files for gRPC service graph
-```
+govis [flags] [packages]
 
-### Git & Evolution
-```bash
-govis -churn ./...                  # Code churn heatmap (hot/warm/cold)
-govis -contributors ./...           # Contributor map with bus-factor risk
-govis -pr-impact main ./...         # PR impact: direct + indirect affected nodes
-govis -evolution v1.0,v2.0 ./...    # Architecture timeline across git tags
-```
+Output formats (-format):
+  interactive   Clickable explorer — Explore APIs / Architecture / Packages (default for browsers)
+  mermaid       Mermaid class diagram
+  html          Static HTML with embedded Mermaid
+  json          Raw graph JSON
+  markdown      Markdown table
+  c4            C4 PlantUML
+  dot           Graphviz DOT
+  dsm           Dependency Structure Matrix
+  excalidraw    Excalidraw JSON
+  pdf           PDF via Graphviz (falls back to DOT if not installed)
+  embed         Embeddable HTML snippet (no CDN deps)
+  3d            3D force-directed graph (Three.js)
+  apimap        API surface map with request/response types
+  dataflow      Mermaid sequence diagram of request flows
 
-### Architecture Linting
-```bash
-govis -vet="handler!store" ./...              # Block handlers from importing stores
-govis -vet="pkg:cmd/api!pkg:internal/db"      # Package-level rules
-```
-
-### Multi-Repo / Microservice
-```bash
-# Export each service as JSON
-govis -format json ./... > svc-a.json
-govis -format json ./... > svc-b.json
-
-# Stitch into one graph with cross-service edge detection
-govis -stitch svc-a.json,svc-b.json -service-map -format interactive
-```
-
-### Diff & Review
-```bash
-# Save baseline, then compare
-govis -format json ./... > baseline.json
-govis -diff baseline.json -format html ./...  # Green=new, Red=removed
-
-# AI architecture review
-export OPENAI_API_KEY="sk-..."
-govis -ai ./...
-```
-
-### Coverage & Quality Overlays
-```bash
-govis -cover cover.out -heatmap ./...   # Red/Yellow/Green coverage overlay
-govis -deadcode ./...                   # Find orphaned components
-govis -cycles ./...                     # Detect circular dependencies
-govis -errcheck ./...                   # Find swallowed errors
-govis -security ./...                   # Security anti-pattern detection
-govis -techdebt ./...                   # TODO/FIXME/HACK scanner
-govis -otel-trace trace.json ./...      # OpenTelemetry latency overlay
+Common flags:
+  -out <file>          Write output to file
+  -filter <pkg>        Filter by package path substring
+  -focus <name>        Focus on one component and its neighbors
+  -callgraph           Include function-to-function call edges
+  -tablemap            Resolve model → database table mappings
+  -envmap              Map environment variable usage
+  -deptree             Include full go.mod transitive dependency tree
+  -infratopo           Parse Docker/K8s topology
+  -churn               Overlay git commit frequency
+  -contributors        Show primary contributor per component
+  -pr-impact <ref>     Show which paths are affected by this PR
+  -stitch <files>      Combine multiple repos into one graph
+  -service-map         Detect cross-service HTTP/gRPC calls
 ```
 
 ---
 
-## Configuration
+## Supported Frameworks
 
-Create `.govis.yml` in your project root (optional):
+Route and handler detection works out of the box for:
 
-```yaml
-linter:
-  vet_rules:
-    - "handler!store"
-    - "route!model"
+| Framework | Handler signature |
+|-----------|-------------------|
+| [GoFr](https://gofr.dev) | `func(ctx *gofr.Context) (any, error)` |
+| [Gin](https://gin-gonic.com) | `func(c *gin.Context)` |
+| [Echo](https://echo.labstack.com) | `func(c echo.Context) error` |
+| [Fiber](https://gofiber.io) | `func(c *fiber.Ctx) error` |
+| net/http | `func(w http.ResponseWriter, r *http.Request)` |
 
-parser:
-  ignore_packages:
-    - "vendor"
-    - "generated"
-  domain_naming:
-    service_match: ".*(Service|UseCase|Manager)$"
-    store_match: ".*Store$"
-    model_match: ".*Model$"
-
-thresholds:
-  max_cycles: 5
-  max_orphans: 10
-  max_security_issues: 3
-```
-
-Run `govis init` to generate a starter config.
-
----
-
-## GitHub Actions
-
-Add to your CI pipeline:
-
-```yaml
-- name: Architecture Check
-  run: |
-    go install github.com/thzgajendra/govis/cmd/govis@latest
-    govis -vet="handler!store" -audit ./...
-```
-
-Or use the Docker-based action:
-
-```yaml
-- uses: thzgajendra/govis@main
-  with:
-    dir: './...'
-```
-
----
-
-## Auto-Detected Layers
-
-Govis automatically classifies nodes using naming heuristics and AST analysis:
-
-| Layer | Detection | Color |
-|-------|-----------|-------|
-| Handler | `*Handler`, `*Controller`, Gin/Echo/Fiber context params | Green |
-| Service | `*Service`, `*UseCase`, `*Manager` | Blue |
-| Store | `*Store`, `*Repository`, `*DAO` | Yellow |
-| Model | `*Model`, `*Entity`, GORM/DB tags | Red |
-| Event | `.Publish()`, `.Subscribe()`, Kafka/NATS/AMQP | Gray |
-| gRPC | `Register*Server()`, `Unimplemented*Server` embeds | Teal |
-| Middleware | `.Use()` registrations | Amber |
-| Infra | AWS/GCP/Azure SDKs from go.mod | Purple |
-
-Override with custom regex in `.govis.yml`.
-
----
-
-## Examples
-
-Pre-generated outputs from running govis on itself:
-
-- [`examples/govis-interactive.html`](examples/govis-interactive.html) — Interactive Cytoscape.js graph
-- [`examples/govis-mermaid.md`](examples/govis-mermaid.md) — Mermaid class diagram
-- [`examples/govis-docs.md`](examples/govis-docs.md) — Markdown documentation
-- [`examples/govis-graph.json`](examples/govis-graph.json) — Raw JSON graph
+Store detection works for: `*sql.DB`, `*sqlx.DB`, `*gorm.DB`, `*mongo.Client`, `*redis.Client`, `*pgxpool.Pool`, and more — detected from struct field types, not naming conventions.
 
 ---
 
 ## How It Works
 
-Govis runs a **6-pass AST analysis pipeline**:
+govis uses Go's type system — not grep, not regexes. It loads your packages with `golang.org/x/tools/go/packages`, walks the AST, and:
 
-1. **Type Harvesting** — Extract structs, interfaces, functions from `go/ast`
-2. **Type Resolution** — Resolve interface implementations and constructor dependencies
-3. **Framework Enrichment** — Detect HTTP routes, events, middleware, gRPC, API maps
-4. **Infrastructure Mapping** — Parse go.mod, Vitess schemas, Docker/K8s, env vars, DB tables
-5. **Runtime Detection** — Concurrency patterns, coverage correlation, git analysis
-6. **Scope Filtering** — Apply focus/filter constraints
+1. **Classifies types structurally**: a store is a struct that holds a `*sql.DB` (not one named `*Store`), a handler is a struct whose methods accept a framework context
+2. **Builds dependency edges** from struct fields and constructor parameters
+3. **Extracts route registrations** from `app.GET("/path", h.Handler)` calls
+4. **Traces the path** from the matched handler through all reachable dependencies, ordered by architectural layer
 
-The entire pipeline runs in a single `go/packages.Load` call with zero external dependencies beyond `golang.org/x/tools` and `gopkg.in/yaml.v3`.
+Works offline, in CI, and on codebases you've never seen before.
+
+---
+
+## Configuration
+
+Create `.govis.yml` in your project root:
+
+```yaml
+parser:
+  ignore_packages:
+    - vendor
+    - _test
+
+layers:
+  service_pattern: ".*Service$"
+  store_pattern:   ".*Store$|.*Repository$|.*Repo$"
+  model_pattern:   ".*Model$|.*Entity$"
+```
+
+Generate a starter config:
+
+```bash
+govis init
+```
+
+---
+
+## Install
+
+```bash
+# Latest
+go install github.com/thzgajendra/govis/cmd/govis@latest
+
+# Specific version
+go install github.com/thzgajendra/govis/cmd/govis@v0.2.0
+```
+
+Or download a binary from [Releases](https://github.com/thzgajendra/govis/releases).
 
 ---
 
 ## License
 
-[Apache License 2.0](LICENSE)
+Apache 2.0 — see [LICENSE](LICENSE)

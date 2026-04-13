@@ -234,6 +234,7 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 		}
 
 		hasDBTags := false
+		hasDBField := false
 		for _, field := range structOrIface.Fields.List {
 			tag := ""
 			if field.Tag != nil {
@@ -248,6 +249,10 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 				if strings.Contains(typStr, "gorm.Model") {
 					hasDBTags = true
 				}
+				// Structural store detection: field of a known DB client type
+				if isDBClientType(typStr) {
+					hasDBField = true
+				}
 			}
 
 			if len(field.Names) == 0 {
@@ -260,7 +265,10 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 			}
 		}
 
-		if hasDBTags && node.Kind == KindStruct {
+		// Structural override: DB client field → always a store
+		if hasDBField {
+			node.Kind = KindStore
+		} else if hasDBTags && node.Kind == KindStruct {
 			node.Kind = KindModel
 		}
 
@@ -344,7 +352,8 @@ func isHTTPHandler(fn *ast.FuncDecl, info *types.Info) bool {
 			typeStr := t0.String()
 			if strings.Contains(typeStr, "gin.Context") ||
 				strings.Contains(typeStr, "echo.Context") ||
-				strings.Contains(typeStr, "fiber.Ctx") {
+				strings.Contains(typeStr, "fiber.Ctx") ||
+				strings.Contains(typeStr, "gofr.Context") {
 				return true
 			}
 		}
@@ -415,11 +424,29 @@ func resolveInterfaces(pkgs []*packages.Package, graph *Graph) {
 
 func resolveDependencies(graph *Graph) {
 	for _, n := range graph.Nodes {
+		// Constructor deps (New* functions): link constructor → dependency
 		if deps, ok := n.Meta["deps"]; ok && deps != "" {
 			for _, d := range strings.Split(deps, ",") {
 				cleanDep := strings.TrimLeft(d, "*")
 				if _, targetExists := graph.Nodes[cleanDep]; targetExists {
 					graph.AddEdge(n.ID, cleanDep, EdgeDepends)
+				}
+			}
+		}
+
+		// Struct field deps: if a field type is a known node, add an edge.
+		// This handles patterns like:  svc service.Service  or  store *UserStore
+		// which are the most common ways Go layers wire together.
+		if n.Kind == KindHandler || n.Kind == KindService || n.Kind == KindStore ||
+			n.Kind == KindGRPC || n.Kind == KindMiddleware {
+			for _, f := range n.Fields {
+				cleanType := strings.TrimLeft(f.Type, "*")
+				// Skip basic/stdlib types and empty
+				if cleanType == "" || !strings.Contains(cleanType, ".") {
+					continue
+				}
+				if _, exists := graph.Nodes[cleanType]; exists {
+					graph.AddEdge(n.ID, cleanType, EdgeDepends)
 				}
 			}
 		}
@@ -450,7 +477,25 @@ var (
 	storeKeywords   = []string{"repository", "repo", "store", "dao", "data", "gateway", "adapter", "persistence", "storage", "client"}
 	modelKeywords   = []string{"model", "entity", "dto", "record", "schema", "domain", "aggregate"}
 	handlerKeywords = []string{"handler", "controller", "endpoint", "transport", "api", "resource"}
+
+	// dbClientTypes are field type suffixes that indicate a struct is a database store.
+	dbClientTypes = []string{
+		"sql.DB", "sqlx.DB", "gorm.DB", "pgx.Conn", "pgxpool.Pool",
+		"mongo.Client", "redis.Client", "redis.ClusterClient",
+		"cassandra.Session", "dynamodb.Client",
+		"sqlx.NamedStmt", "sql.Tx", "sqlx.Tx",
+	}
 )
+
+// isDBClientType returns true if the type string contains a known database client type.
+func isDBClientType(typStr string) bool {
+	for _, dbType := range dbClientTypes {
+		if strings.HasSuffix(typStr, dbType) || strings.Contains(typStr, dbType) {
+			return true
+		}
+	}
+	return false
+}
 
 // matchLayer checks if a node belongs to an architectural layer based on its name or package
 func matchLayer(name string, pkgPath string, keywords []string) bool {

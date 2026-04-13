@@ -22,6 +22,9 @@ func Execute() {
 		case "init":
 			generateInitConfig()
 			return
+		case "trace":
+			runTrace(os.Args[2:])
+			return
 		}
 	}
 
@@ -340,5 +343,73 @@ func runVetRules(rules []string, graph *govis.Graph) {
 		os.Exit(1)
 	} else if len(rules) > 0 {
 		fmt.Fprintf(os.Stderr, "✅ Architecture vet passed.\n")
+	}
+}
+
+// runTrace implements the `govis trace <route> [dir]` subcommand.
+// It parses the codebase and prints the complete request path for the given route.
+func runTrace(args []string) {
+	fs := flag.NewFlagSet("trace", flag.ExitOnError)
+	outPath := fs.String("out", "", "Output file (default: stdout)")
+	format := fs.String("format", "text", "Output format: text, html")
+	tableMap := fs.Bool("tablemap", false, "Resolve model → database table mappings")
+	envMap := fs.Bool("envmap", false, "Resolve environment variable reads")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: govis trace [flags] <route> [packages]\n\n")
+		fmt.Fprintf(os.Stderr, "Trace a request path through your Go codebase.\n\n")
+		fmt.Fprintf(os.Stderr, "Examples:\n")
+		fmt.Fprintf(os.Stderr, "  govis trace \"POST /orders\" ./...\n")
+		fmt.Fprintf(os.Stderr, "  govis trace \"/orders\" ./...\n")
+		fmt.Fprintf(os.Stderr, "  govis trace -format html -out trace.html \"POST /orders\" ./...\n\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Error: route argument required")
+		fs.Usage()
+		os.Exit(1)
+	}
+
+	route := fs.Arg(0)
+	dir := "./..."
+	if fs.NArg() >= 2 {
+		dir = fs.Arg(1)
+	}
+
+	opts := govis.ParseOptions{
+		Dir:      dir,
+		TableMap: *tableMap,
+		EnvMap:   *envMap,
+	}
+
+	fmt.Fprintf(os.Stderr, "Analyzing %s...\n", dir)
+	graph, err := govis.Parse(opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result := govis.Trace(route, graph)
+
+	w := os.Stdout
+	if *outPath != "" {
+		f, err := os.Create(*outPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		w = f
+	}
+
+	renderer := &render.TraceRenderer{Format: *format}
+	if err := renderer.RenderTrace(result, w); err != nil {
+		fmt.Fprintf(os.Stderr, "Render error: %v\n", err)
+		os.Exit(1)
 	}
 }
