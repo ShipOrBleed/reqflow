@@ -25,8 +25,9 @@ func Execute() {
 	}
 
 	// ---- Flag Definitions ----
-	format := flag.String("format", "mermaid", "Output format: mermaid, dot, html, json, markdown, svg")
+	format := flag.String("format", "mermaid", "Output format: mermaid, c4, dsm, dot, html, json, markdown, svg")
 	out := flag.String("out", "", "Output file (default: stdout)")
+	stitch := flag.String("stitch", "", "Stitch multiple JSON architecture exports (comma-separated files)")
 	serve := flag.String("serve", "", "Start a live HTTP visualization server (e.g., ':8080')")
 	filter := flag.String("filter", "", "Filter by package path")
 	focus := flag.String("focus", "", "Focus on a specific component name")
@@ -79,6 +80,12 @@ func Execute() {
 		*security = true
 		*techDebt = true
 		*constructors = true
+	}
+
+	// ---- Stitch Mode ----
+	if *stitch != "" {
+		handleStitch(*stitch, *format, *out)
+		return
 	}
 
 	// ---- Parse ----
@@ -139,6 +146,10 @@ func Execute() {
 		r = &render.MermaidRenderer{}
 	case "markdown", "md":
 		r = &render.MarkdownRenderer{}
+	case "c4":
+		r = &render.C4Renderer{}
+	case "dsm":
+		r = &render.DSMRenderer{}
 	case "dot":
 		r = &render.DOTRenderer{}
 	case "svg":
@@ -166,6 +177,51 @@ func Execute() {
 	}
 }
 
+func handleStitch(filesStr, format, outPath string) {
+	files := strings.Split(filesStr, ",")
+	var graphs []*structmap.Graph
+
+	for _, f := range files {
+		data, err := os.ReadFile(strings.TrimSpace(f))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading stitch file %s: %v\n", f, err)
+			os.Exit(1)
+		}
+		var g structmap.Graph
+		if err := json.Unmarshal(data, &g); err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing JSON from %s: %v\n", f, err)
+			os.Exit(1)
+		}
+		graphs = append(graphs, &g)
+	}
+
+	merged := structmap.Stitch(graphs)
+	
+	// Print summary of merged graph
+	structmap.PrintSummary(merged, os.Stderr)
+
+	var r render.Renderer
+	switch format {
+	case "json": r = &render.JSONRenderer{}
+	case "html": r = &render.HTMLRenderer{}
+	case "mermaid": r = &render.MermaidRenderer{}
+	case "markdown", "md": r = &render.MarkdownRenderer{}
+	case "c4": r = &render.C4Renderer{}
+	case "dsm": r = &render.DSMRenderer{}
+	case "dot": r = &render.DOTRenderer{}
+	default:
+		r = &render.MermaidRenderer{}
+	}
+
+	w := os.Stdout
+	if outPath != "" {
+		f, _ := os.Create(outPath)
+		defer f.Close()
+		w = f
+	}
+	r.Render(merged, w)
+}
+
 // runVetRules checks architecture rules and exits 1 on violations
 func runVetRules(rules []string, graph *structmap.Graph) {
 	violations := 0
@@ -174,6 +230,26 @@ func runVetRules(rules []string, graph *structmap.Graph) {
 		if len(parts) != 2 {
 			continue
 		}
+
+		isPkgRule := strings.HasPrefix(parts[0], "pkg:") && strings.HasPrefix(parts[1], "pkg:")
+		
+		if isPkgRule {
+			fromPkg := strings.TrimPrefix(parts[0], "pkg:")
+			toPkg := strings.TrimPrefix(parts[1], "pkg:")
+
+			for _, edge := range graph.Edges {
+				fromNode := graph.Nodes[edge.From]
+				toNode := graph.Nodes[edge.To]
+				if fromNode != nil && toNode != nil {
+					if strings.Contains(fromNode.Package, fromPkg) && strings.Contains(toNode.Package, toPkg) {
+						fmt.Fprintf(os.Stderr, "🚨 VIOLATION [%s!%s]: '%s' → '%s'\n", parts[0], parts[1], fromNode.ID, toNode.ID)
+						violations++
+					}
+				}
+			}
+			continue
+		}
+
 		fromKind := structmap.NodeKind(parts[0])
 		toKind := structmap.NodeKind(parts[1])
 

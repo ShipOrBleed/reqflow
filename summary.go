@@ -73,3 +73,32 @@ func PrintSummary(g *Graph, w io.Writer) {
 	fmt.Fprintf(w, "   Nodes: %d  |  Edges: %d\n", len(g.Nodes), len(g.Edges))
 	fmt.Fprintln(w, "")
 }
+
+// GetSummaryHTML returns the graph statistics formatted as HTML for use in dashboards.
+func GetSummaryHTML(g *Graph) string {
+	counts := make(map[NodeKind]int)
+	for _, n := range g.Nodes {
+		counts[n.Kind]++
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<div class='stats-grid'>")
+	
+	addStat := func(label string, val int, icon string) {
+		if val > 0 {
+			sb.WriteString(fmt.Sprintf("<div class='stat-card'><h3>%d</h3><p>%s %s</p></div>", val, icon, label))
+		}
+	}
+
+	addStat("Packages", len(g.Clusters), "📦")
+	addStat("Handlers", counts[KindHandler], "🌐")
+	addStat("Services", counts[KindService], "⚙️")
+	addStat("Stores", counts[KindStore], "🗄️")
+	addStat("Models", counts[KindModel], "📄")
+	addStat("Events", counts[KindEvent], "📢")
+	addStat("Infra", counts[KindInfra], "☁️")
+	
+	sb.WriteString("</div>")
+	return sb.String()
+}
+

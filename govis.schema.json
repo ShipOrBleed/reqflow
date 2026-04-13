@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Govis Configuration Schema",
+  "type": "object",
+  "properties": {
+    "linter": {
+      "type": "object",
+      "properties": {
+        "vet_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "Rule format: 'from_kind!to_kind' or 'pkg:from!pkg:to'"
+          }
+        }
+      }
+    },
+    "parser": {
+      "type": "object",
+      "properties": {
+        "ignore_packages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "domain_naming": {
+          "type": "object",
+          "properties": {
+            "service_match": { "type": "string" },
+            "store_match": { "type": "string" },
+            "model_match": { "type": "string" }
+          }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "max_cycles": { "type": "integer" },
+        "max_orphans": { "type": "integer" },
+        "max_security_issues": { "type": "integer" }
+      }
+    }
+  }
+}

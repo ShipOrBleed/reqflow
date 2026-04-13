@@ -17,100 +17,156 @@ func (h *HTMLRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		return err
 	}
 
+	summaryHTML := structmap.GetSummaryHTML(g)
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Govis Interactive Architecture Map</title>
-    <!-- Modern Styling -->
+    <title>Govis Enterprise Dashboard</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; margin: 0; display: flex; flex-direction: column; height: 100vh; color: #f8fafc; }
-        header { background: #1e293b; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); z-index: 10; display: flex; justify-content: space-between; align-items: center; }
-        h2 { margin: 0; font-size: 1.5rem; font-weight: 600; color: #38bdf8; }
-        p { margin: 0.5rem 0 0 0; color: #94a3b8; font-size: 0.9rem; }
-        .badge { background: #3b82f6; color: white; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: bold; }
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; color: var(--text); }
+        header { 
+            background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center; z-index: 100;
+        }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--accent); letter-spacing: -0.025em; }
+        .logo span { color: var(--text); font-weight: 400; }
         
-        .container { flex-grow: 1; overflow: hidden; display: flex; position: relative; }
+        .main { display: flex; flex: 1; overflow: hidden; }
         
-        /* The graph container */
-        #mermaid-container { width: 100%%; height: 100%%; display: flex; align-items: center; justify-content: center; cursor: grab; }
-        #mermaid-container:active { cursor: grabbing; }
+        .sidebar { 
+            width: 320px; background: var(--surface); border-right: 1px solid var(--border);
+            padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2rem;
+        }
         
-        /* Legend */
-        .legend { position: absolute; bottom: 2rem; left: 2rem; background: rgba(30, 41, 59, 0.9); padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); border: 1px solid #334155; }
-        .legend h4 { margin: 0 0 1rem 0; color: #f1f5f9; }
-        .legend-item { display: flex; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem; color: #cbd5e1; }
-        .dot { width: 12px; height: 12px; border-radius: 50%%; margin-right: 8px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .stat-card { 
+            background: var(--bg); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);
+            text-align: center;
+        }
+        .stat-card h3 { margin: 0; font-size: 1.25rem; color: var(--accent); }
+        .stat-card p { margin: 0.25rem 0 0 0; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         
-        .c-handler { background: #28a745; box-shadow: 0 0 8px #28a745; }
-        .c-service { background: #007bff; box-shadow: 0 0 8px #007bff; }
-        .c-store { background: #ffc107; box-shadow: 0 0 8px #ffc107; }
-        .c-model { background: #dc3545; box-shadow: 0 0 8px #dc3545; }
+        #graph-container { flex: 1; position: relative; background: radial-gradient(circle at 2px 2px, #1e293b 1px, transparent 0); background-size: 24px 24px; }
+        #mermaid-svg { width: 100%%; height: 100%%; }
+        
+        .node-details { 
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            padding: 1rem; position: absolute; bottom: 2rem; right: 2rem; width: 300px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); display: none;
+        }
+        
+        .legend { display: flex; flex-direction: column; gap: 0.5rem; }
+        .legend-item { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
+        .dot { width: 12px; height: 12px; border-radius: 3px; }
+        
+        .controls { position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.5rem; }
+        button { 
+            background: var(--surface); border: 1px solid var(--border); color: var(--text);
+            padding: 0.5rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        button:hover { background: var(--border); }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     </style>
 </head>
 <body>
     <header>
-        <div>
-            <h2>Govis Architecture Dashboard 🗺️</h2>
-            <p>Interactive graph mapped from your Go AST. Pan around and zoom to explore.</p>
+        <div class="logo">GOVIS<span>.arch</span></div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">ENTERPRISE EDITION</div>
+            <div style="width: 8px; height: 8px; border-radius: 50%%; background: #22c55e; box-shadow: 0 0 8px #22c55e;"></div>
         </div>
-        <div class="badge">Live Map</div>
     </header>
     
-    <div class="container">
-        <!-- SVG injection inside a flex container allows panning -->
-        <div id="mermaid-container" class="mermaid">
-%s
+    <div class="main">
+        <div class="sidebar">
+            <section>
+                <h4 style="margin: 0 0 1rem 0; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">System Health</h4>
+                %s
+            </section>
+            
+            <section>
+                <h4 style="margin: 0 0 1rem 0; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">Architecture Layers</h4>
+                <div class="legend">
+                    <div class="legend-item"><div class="dot" style="background:#28a745"></div> 🌐 Handler / API</div>
+                    <div class="legend-item"><div class="dot" style="background:#007bff"></div> ⚙️ Service / Logic</div>
+                    <div class="legend-item"><div class="dot" style="background:#ffc107"></div> 🗄️ Store / Repository</div>
+                    <div class="legend-item"><div class="dot" style="background:#dc3545"></div> 📄 Model / Entity</div>
+                    <div class="legend-item"><div class="dot" style="background:#6c757d"></div> 📦 Other Types</div>
+                </div>
+            </section>
+
+            <section style="margin-top: auto;">
+                <p style="font-size: 0.75rem; color: var(--text-muted);">
+                    Govis automatically infers these layers using DDD and framework naming heuristics.
+                </p>
+            </section>
         </div>
         
-        <div class="legend">
-            <h4>Architecture Legend</h4>
-            <div class="legend-item"><div class="dot c-handler"></div> HTTP Handler / Controller</div>
-            <div class="legend-item"><div class="dot c-service"></div> Business Logic / Service</div>
-            <div class="legend-item"><div class="dot c-store"></div> Database Store / Repository</div>
-            <div class="legend-item"><div class="dot c-model"></div> Data Model / Entity</div>
-            <div class="legend-item"><div class="dot" style="background:#6c757d; border-radius:2px"></div> Interface Integration</div>
+        <div id="graph-container">
+            <div id="mermaid-svg" class="mermaid">
+                %s
+            </div>
+            <div class="controls">
+                <button onclick="resetZoom()">Reset View</button>
+            </div>
         </div>
     </div>
-    
-    <!-- Render Mermaid natively mapping to standard SVGs -->
+
     <script type="module">
-      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-      mermaid.initialize({ 
-          startOnLoad: true, 
-          maxTextSize: 900000,
-          theme: 'dark', // Gorgeous dark mode
-          securityLevel: 'loose' // Vital to allow our vscode:// custom URI schemes!
-      });
-      
-      // Delay initialization of SVG pan-zoom until Mermaid injects the literal SVG node
-      setTimeout(() => {
-          let svgElem = document.querySelector("#mermaid-container svg");
-          if(svgElem) {
-              svgElem.style.width = '100%%';
-              svgElem.style.height = '100%%';
-              svgElem.style.maxWidth = 'none';
-              
-              // Load svg-pan-zoom dynamically
-              let script = document.createElement('script');
-              script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';
-              script.onload = () => {
-                  window.panZoomSetup = svgPanZoom(svgElem, {
-                      zoomEnabled: true,
-                      controlIconsEnabled: true,
-                      fit: true,
-                      center: true,
-                      minZoom: 0.1
-                  });
-              };
-              document.head.appendChild(script);
-          }
-      }, 500);
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'dark',
+            securityLevel: 'loose'
+        });
+
+        setTimeout(() => {
+            let svg = document.querySelector("#graph-container svg");
+            if(svg) {
+                svg.style.width = '100%%';
+                svg.style.height = '100%%';
+                
+                let script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js';
+                script.onload = () => {
+                    window.panZoom = svgPanZoom(svg, {
+                        zoomEnabled: true,
+                        controlIconsEnabled: false,
+                        fit: true,
+                        center: true,
+                        minZoom: 0.05,
+                        maxZoom: 20
+                    });
+                };
+                document.head.appendChild(script);
+            }
+        }, 500);
+
+        window.resetZoom = () => {
+            if(window.panZoom) {
+                window.panZoom.reset();
+                window.panZoom.fit();
+                window.panZoom.center();
+            }
+        };
     </script>
 </body>
 </html>`
 
-	// Note: We escape any format string markers in javascript or css utilizing percents inside string template
-	fmt.Fprintf(w, htmlTemplate, buf.String())
+	fmt.Fprintf(w, htmlTemplate, summaryHTML, buf.String())
 	return nil
 }
