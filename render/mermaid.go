@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // Renderer defines standard graph output capability

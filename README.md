@@ -1,14 +1,14 @@
 # Govis
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/zopdev/govis.svg)](https://pkg.go.dev/github.com/zopdev/govis)
-[![Go Report Card](https://goreportcard.com/badge/github.com/zopdev/govis)](https://goreportcard.com/report/github.com/zopdev/govis)
+[![Go Reference](https://pkg.go.dev/badge/github.com/thzgajendra/govis.svg)](https://pkg.go.dev/github.com/thzgajendra/govis)
+[![Go Report Card](https://goreportcard.com/badge/github.com/thzgajendra/govis)](https://goreportcard.com/report/github.com/thzgajendra/govis)
 [![CI](https://github.com/thzgajendra/govis/actions/workflows/ci.yml/badge.svg)](https://github.com/thzgajendra/govis/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **Go architecture visualizer.** Parses Go ASTs to build dependency graphs, detect architectural layers, and render interactive visualizations in 14 output formats.
 
 ```bash
-go install github.com/zopdev/govis/cmd/govis@latest
+go install github.com/thzgajendra/govis/cmd/govis@latest
 cd your-go-project
 govis -format interactive ./...
 ```
@@ -40,7 +40,7 @@ No competing tool combines visualization + analysis + multi-format output in a s
 ### Install
 
 ```bash
-go install github.com/zopdev/govis/cmd/govis@latest
+go install github.com/thzgajendra/govis/cmd/govis@latest
 ```
 
 ### Basic Usage
@@ -62,7 +62,7 @@ govis -audit ./...
 ### Use as a Library
 
 ```go
-import "github.com/zopdev/govis"
+import "github.com/thzgajendra/govis"
 
 graph, err := govis.Parse(govis.ParseOptions{Dir: "."})
 // graph.Nodes, graph.Edges, graph.Clusters are ready to use
@@ -194,7 +194,7 @@ Add to your CI pipeline:
 ```yaml
 - name: Architecture Check
   run: |
-    go install github.com/zopdev/govis/cmd/govis@latest
+    go install github.com/thzgajendra/govis/cmd/govis@latest
     govis -vet="handler!store" -audit ./...
 ```
 

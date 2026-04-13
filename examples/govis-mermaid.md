@@ -92,7 +92,7 @@ classDiagram
       +Main bool
       +Dir string
       +GoMod string
-      +Replace github.com/zopdev/govis.goModule
+      +Replace github.com/thzgajendra/govis.goModule
     }
     class github_com_zopdev_govis_ExtractDepTree {
       <<function>>
@@ -141,7 +141,7 @@ classDiagram
       +NodeCount int
       +EdgeCount int
       +Packages int
-      +KindCount map[github.com/zopdev/govis.NodeKind]int
+      +KindCount map[github.com/thzgajendra/govis.NodeKind]int
       +Added string
       +Removed string
     }
@@ -184,10 +184,10 @@ classDiagram
     }
     class github_com_zopdev_govis_Node {
       +ID string
-      +Kind github.com/zopdev/govis.NodeKind
+      +Kind github.com/thzgajendra/govis.NodeKind
       +Name string
       +Package string
-      +Fields github.com/zopdev/govis.Field
+      +Fields github.com/thzgajendra/govis.Field
       +Methods string
       +File string
       +Line int
@@ -201,11 +201,11 @@ classDiagram
     class github_com_zopdev_govis_Edge {
       +From string
       +To string
-      +Kind github.com/zopdev/govis.EdgeKind
+      +Kind github.com/thzgajendra/govis.EdgeKind
     }
     class github_com_zopdev_govis_Graph {
-      +Nodes map[string]github.com/zopdev/govis.Node
-      +Edges github.com/zopdev/govis.Edge
+      +Nodes map[string]github.com/thzgajendra/govis.Node
+      +Edges github.com/thzgajendra/govis.Edge
       +Clusters map[string]string
       +Meta map[string]string
       +AddNode()
@@ -233,7 +233,7 @@ classDiagram
       +Entrypoint string
     }
     class github_com_zopdev_govis_dockerComposeFile {
-      +Services map[string]github.com/zopdev/govis.dockerComposeService
+      +Services map[string]github.com/thzgajendra/govis.dockerComposeService
     }
     class github_com_zopdev_govis_parseDockerCompose {
       <<function>>
@@ -259,7 +259,7 @@ classDiagram
     class github_com_zopdev_govis_NodeMetrics {
       +ID string
       +Name string
-      +Kind github.com/zopdev/govis.NodeKind
+      +Kind github.com/thzgajendra/govis.NodeKind
       +FanIn int
       +FanOut int
       +Methods int
@@ -276,20 +276,20 @@ classDiagram
     }
     class github_com_zopdev_govis_OTLPExport {
       <<model>>
-      +ResourceSpans github.com/zopdev/govis.resourceSpan
+      +ResourceSpans github.com/thzgajendra/govis.resourceSpan
     }
     class github_com_zopdev_govis_resourceSpan {
       <<model>>
-      +Resource github.com/zopdev/govis.resource
-      +ScopeSpans github.com/zopdev/govis.scopeSpan
+      +Resource github.com/thzgajendra/govis.resource
+      +ScopeSpans github.com/thzgajendra/govis.scopeSpan
     }
     class github_com_zopdev_govis_resource {
       <<handler>>
-      +Attributes github.com/zopdev/govis.attribute
+      +Attributes github.com/thzgajendra/govis.attribute
     }
     class github_com_zopdev_govis_scopeSpan {
       <<model>>
-      +Spans github.com/zopdev/govis.span
+      +Spans github.com/thzgajendra/govis.span
     }
     class github_com_zopdev_govis_span {
       <<model>>
@@ -297,8 +297,8 @@ classDiagram
       +Kind int
       +StartTimeUnixNano string
       +EndTimeUnixNano string
-      +Attributes github.com/zopdev/govis.attribute
-      +Status github.com/zopdev/govis.spanStatus
+      +Attributes github.com/thzgajendra/govis.attribute
+      +Status github.com/thzgajendra/govis.spanStatus
       +ParentSpanID string
       +SpanID string
       +TraceID string
@@ -306,7 +306,7 @@ classDiagram
     class github_com_zopdev_govis_attribute {
       <<model>>
       +Key string
-      +Value github.com/zopdev/govis.attributeValue
+      +Value github.com/thzgajendra/govis.attributeValue
     }
     class github_com_zopdev_govis_attributeValue {
       <<model>>
@@ -347,7 +347,7 @@ classDiagram
       +Dir string
       +Filter string
       +Focus string
-      +Config github.com/zopdev/govis.GovisConfig
+      +Config github.com/thzgajendra/govis.GovisConfig
       +APIMap bool
       +Heatmap bool
       +CallGraph bool
@@ -442,7 +442,7 @@ classDiagram
     class github_com_zopdev_govis_VSchema {
       <<model>>
       +Sharded bool
-      +Tables map[string]github.com/zopdev/govis.VTable
+      +Tables map[string]github.com/thzgajendra/govis.VTable
     }
     class github_com_zopdev_govis_VTable {
       <<model>>
@@ -496,7 +496,7 @@ classDiagram
       +Type string
       +Version int
       +Source string
-      +Elements github.com/zopdev/govis/render.excalidrawElement
+      +Elements github.com/thzgajendra/govis/render.excalidrawElement
       +AppState map[string]any
     }
     class github_com_zopdev_govis_render_excalidrawElement {
@@ -519,10 +519,10 @@ classDiagram
       +TextAlign string
       +VerticalAlign string
       +ContainerID string
-      +BoundElements github.com/zopdev/govis/render.bound
+      +BoundElements github.com/thzgajendra/govis/render.bound
       +Points float64
-      +StartBinding github.com/zopdev/govis/render.binding
-      +EndBinding github.com/zopdev/govis/render.binding
+      +StartBinding github.com/thzgajendra/govis/render.binding
+      +EndBinding github.com/thzgajendra/govis/render.binding
       +StartArrowhead string
       +EndArrowhead string
     }
@@ -539,7 +539,7 @@ classDiagram
     }
     class github_com_zopdev_govis_render_nodeEntry {
       +id string
-      +node github.com/zopdev/govis.Node
+      +node github.com/thzgajendra/govis.Node
     }
     class github_com_zopdev_govis_render_genID {
       <<function>>
@@ -571,8 +571,8 @@ classDiagram
     }
     class github_com_zopdev_govis_render_cyGraph {
       <<model>>
-      +Nodes github.com/zopdev/govis/render.cyNode
-      +Edges github.com/zopdev/govis/render.cyEdge
+      +Nodes github.com/thzgajendra/govis/render.cyNode
+      +Edges github.com/thzgajendra/govis/render.cyEdge
       +Clusters string
     }
     class github_com_zopdev_govis_render_JSONRenderer {
@@ -623,11 +623,11 @@ classDiagram
     }
     class github_com_zopdev_govis_render_threeGraph {
       <<model>>
-      +Nodes github.com/zopdev/govis/render.threeNode
-      +Links github.com/zopdev/govis/render.threeEdge
+      +Nodes github.com/thzgajendra/govis/render.threeNode
+      +Links github.com/thzgajendra/govis/render.threeEdge
     }
     class github_com_zopdev_govis_render_TimelineRenderer {
-      +Snapshots github.com/zopdev/govis.EvolutionSnapshot
+      +Snapshots github.com/thzgajendra/govis.EvolutionSnapshot
       +Render()
     }
   }

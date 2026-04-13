@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 type JSONRenderer struct{}

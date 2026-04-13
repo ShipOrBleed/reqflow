@@ -8,7 +8,7 @@ import (
 	"io"
 	"sort"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // ExcalidrawRenderer generates an Excalidraw JSON file (.excalidraw)

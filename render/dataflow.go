@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // DataFlowRenderer generates Mermaid sequence diagrams showing request

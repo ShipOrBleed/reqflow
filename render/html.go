@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 type HTMLRenderer struct{}

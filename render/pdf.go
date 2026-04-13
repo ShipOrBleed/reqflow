@@ -6,7 +6,7 @@ import (
 	"io"
 	"os/exec"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // PDFRenderer generates a PDF by first rendering to DOT format and then

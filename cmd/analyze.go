@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 	"golang.org/x/tools/go/packages"
 )
 

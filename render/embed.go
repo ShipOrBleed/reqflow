@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // EmbedRenderer generates a self-contained HTML snippet that can be pasted

@@ -5,7 +5,7 @@
 //
 // Install the CLI:
 //
-//	go install github.com/zopdev/govis/cmd/govis@latest
+//	go install github.com/thzgajendra/govis/cmd/govis@latest
 //
 // Use as a library:
 //

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // DSMRenderer generates a Dependency Structure Matrix (DSM) in text format.

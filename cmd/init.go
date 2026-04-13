@@ -11,7 +11,7 @@ const govisYAMLTemplate = `# ===========================================
 # Place this file at the root of your Go project.
 # Govis will auto-detect and load it on every run.
 #
-# Documentation: https://github.com/zopdev/govis
+# Documentation: https://github.com/thzgajendra/govis
 
 # Architecture linting rules.
 # Format: "from_kind!to_kind" — fails CI if this dependency exists.

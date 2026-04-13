@@ -1,4 +1,4 @@
-module github.com/zopdev/govis
+module github.com/thzgajendra/govis
 
 go 1.25.0
 

@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // InteractiveRenderer generates a self-contained HTML page with Cytoscape.js

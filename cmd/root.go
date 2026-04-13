@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	govis "github.com/zopdev/govis"
-	"github.com/zopdev/govis/render"
+	govis "github.com/thzgajendra/govis"
+	"github.com/thzgajendra/govis/render"
 )
 
 // Execute is the main CLI entrypoint for govis.

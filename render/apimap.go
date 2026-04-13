@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	govis "github.com/zopdev/govis"
+	govis "github.com/thzgajendra/govis"
 )
 
 // APIMapRenderer generates a focused table view of all API endpoints

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	govis "github.com/zopdev/govis"
-	"github.com/zopdev/govis/render"
+	govis "github.com/thzgajendra/govis"
+	"github.com/thzgajendra/govis/render"
 )
 
 // startServer launches the live HTTP visualization daemon
