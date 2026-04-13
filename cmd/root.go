@@ -26,7 +26,7 @@ func Execute() {
 	}
 
 	// ---- Flag Definitions ----
-	format := flag.String("format", "mermaid", "Output format: mermaid, c4, dsm, dot, html, interactive, json, markdown, svg")
+	format := flag.String("format", "mermaid", "Output format: mermaid, c4, dsm, dot, html, interactive, json, markdown, svg, excalidraw, pdf, embed, 3d, apimap, dataflow")
 	out := flag.String("out", "", "Output file (default: stdout)")
 	stitch := flag.String("stitch", "", "Stitch multiple JSON architecture exports (comma-separated files)")
 	serve := flag.String("serve", "", "Start a live HTTP visualization server (e.g., ':8080')")
@@ -208,6 +208,14 @@ func Execute() {
 		r = &render.DSMRenderer{}
 	case "dot":
 		r = &render.DOTRenderer{}
+	case "excalidraw":
+		r = &render.ExcalidrawRenderer{}
+	case "pdf":
+		r = &render.PDFRenderer{}
+	case "embed":
+		r = &render.EmbedRenderer{}
+	case "3d":
+		r = &render.ThreeRenderer{}
 	case "svg":
 		fmt.Fprintf(os.Stderr, "SVG: pipe dot into graphviz: govis -format dot | dot -Tsvg\n")
 		r = &render.DOTRenderer{}
