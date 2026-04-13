@@ -1,4 +1,4 @@
-name: 'Govis — Go Architecture Visualizer'
+name: 'Reqflow — Go Architecture Visualizer'
 description: 'Generates architecture diagrams, dependency graphs, and analysis reports for Go codebases'
 author: 'zopdev'
 branding:

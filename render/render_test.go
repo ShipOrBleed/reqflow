@@ -5,38 +5,38 @@ import (
 	"strings"
 	"testing"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // testGraph builds a small representative graph for renderer testing.
-func testGraph() *govis.Graph {
-	g := govis.NewGraph()
+func testGraph() *reqflow.Graph {
+	g := reqflow.NewGraph()
 
-	g.AddNode(&govis.Node{
-		ID: "app.UserHandler", Kind: govis.KindHandler, Name: "UserHandler",
+	g.AddNode(&reqflow.Node{
+		ID: "app.UserHandler", Kind: reqflow.KindHandler, Name: "UserHandler",
 		Package: "app", File: "/app/handler.go", Line: 10,
 		Methods: []string{"GetUser", "CreateUser"},
 		Meta:    map[string]string{"route": "GET /users/{id}"},
 	})
-	g.AddNode(&govis.Node{
-		ID: "app.UserService", Kind: govis.KindService, Name: "UserService",
+	g.AddNode(&reqflow.Node{
+		ID: "app.UserService", Kind: reqflow.KindService, Name: "UserService",
 		Package: "app", File: "/app/service.go", Line: 20,
 		Methods: []string{"FindByID", "Create"},
 	})
-	g.AddNode(&govis.Node{
-		ID: "app.UserStore", Kind: govis.KindStore, Name: "UserStore",
+	g.AddNode(&reqflow.Node{
+		ID: "app.UserStore", Kind: reqflow.KindStore, Name: "UserStore",
 		Package: "app", File: "/app/store.go", Line: 30,
-		Fields: []govis.Field{{Name: "db", Type: "*sql.DB"}},
+		Fields: []reqflow.Field{{Name: "db", Type: "*sql.DB"}},
 	})
-	g.AddNode(&govis.Node{
-		ID: "app.User", Kind: govis.KindModel, Name: "User",
+	g.AddNode(&reqflow.Node{
+		ID: "app.User", Kind: reqflow.KindModel, Name: "User",
 		Package: "models", File: "/models/user.go", Line: 5,
-		Fields: []govis.Field{{Name: "ID", Type: "int"}, {Name: "Name", Type: "string"}},
+		Fields: []reqflow.Field{{Name: "ID", Type: "int"}, {Name: "Name", Type: "string"}},
 	})
 
-	g.AddEdge("app.UserHandler", "app.UserService", govis.EdgeDepends)
-	g.AddEdge("app.UserService", "app.UserStore", govis.EdgeDepends)
-	g.AddEdge("app.UserStore", "app.User", govis.EdgeDepends)
+	g.AddEdge("app.UserHandler", "app.UserService", reqflow.EdgeDepends)
+	g.AddEdge("app.UserService", "app.UserStore", reqflow.EdgeDepends)
+	g.AddEdge("app.UserStore", "app.User", reqflow.EdgeDepends)
 
 	return g
 }
@@ -74,8 +74,8 @@ func TestHTMLRenderer(t *testing.T) {
 	if !strings.Contains(out, "<!DOCTYPE html>") {
 		t.Error("Expected HTML doctype")
 	}
-	if !strings.Contains(out, "GOVIS") {
-		t.Error("Expected GOVIS branding")
+	if !strings.Contains(out, "REQFLOW") {
+		t.Error("Expected REQFLOW branding")
 	}
 	if !strings.Contains(out, "mermaid") {
 		t.Error("Expected mermaid script reference")
@@ -90,8 +90,8 @@ func TestInteractiveRenderer(t *testing.T) {
 	}
 	out := buf.String()
 
-	if !strings.Contains(out, "GOVIS") {
-		t.Error("Expected GOVIS branding")
+	if !strings.Contains(out, "REQFLOW") {
+		t.Error("Expected REQFLOW branding")
 	}
 	if !strings.Contains(out, "UserHandler") {
 		t.Error("Expected UserHandler in graph data")
@@ -208,8 +208,8 @@ func TestEmbedRenderer(t *testing.T) {
 	}
 	out := buf.String()
 
-	if !strings.Contains(out, "GOVIS") {
-		t.Error("Expected GOVIS branding")
+	if !strings.Contains(out, "REQFLOW") {
+		t.Error("Expected REQFLOW branding")
 	}
 	if !strings.Contains(out, "classDiagram") {
 		t.Error("Expected embedded mermaid diagram")
@@ -293,9 +293,9 @@ func TestTimelineRendererEmpty(t *testing.T) {
 func TestTimelineRendererWithData(t *testing.T) {
 	var buf bytes.Buffer
 	r := &TimelineRenderer{
-		Snapshots: []govis.EvolutionSnapshot{
-			{Ref: "v1.0", NodeCount: 10, EdgeCount: 5, Packages: 3, KindCount: map[govis.NodeKind]int{govis.KindHandler: 2}},
-			{Ref: "v2.0", NodeCount: 15, EdgeCount: 8, Packages: 4, KindCount: map[govis.NodeKind]int{govis.KindHandler: 3}, Added: []string{"new.Node"}},
+		Snapshots: []reqflow.EvolutionSnapshot{
+			{Ref: "v1.0", NodeCount: 10, EdgeCount: 5, Packages: 3, KindCount: map[reqflow.NodeKind]int{reqflow.KindHandler: 2}},
+			{Ref: "v2.0", NodeCount: 15, EdgeCount: 8, Packages: 4, KindCount: map[reqflow.NodeKind]int{reqflow.KindHandler: 3}, Added: []string{"new.Node"}},
 		},
 	}
 	if err := r.Render(testGraph(), &buf); err != nil {
@@ -314,7 +314,7 @@ func TestTimelineRendererWithData(t *testing.T) {
 // ==================== Renderer on empty graph ====================
 
 func TestRenderersHandleEmptyGraph(t *testing.T) {
-	empty := govis.NewGraph()
+	empty := reqflow.NewGraph()
 	renderers := map[string]Renderer{
 		"mermaid":     &MermaidRenderer{},
 		"html":        &HTMLRenderer{},

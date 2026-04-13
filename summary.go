@@ -1,4 +1,4 @@
-package govis
+package reqflow
 
 import (
 	"fmt"
@@ -24,7 +24,7 @@ func PrintSummary(g *Graph, w io.Writer) {
 	}
 
 	fmt.Fprintln(w, "")
-	fmt.Fprintf(w, "📊 Govis Analysis Summary\n")
+	fmt.Fprintf(w, "📊 Reqflow Analysis Summary\n")
 	fmt.Fprintf(w, "   Packages: %d\n", len(g.Clusters))
 
 	// Layer counts

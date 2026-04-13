@@ -1,4 +1,4 @@
-package govis
+package reqflow
 
 // DataFlow represents a single request lifecycle path through the architecture.
 type DataFlow struct {

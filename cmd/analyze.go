@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 	"golang.org/x/tools/go/packages"
 )
 
 // runAnalysis executes all enabled analysis checks and prints results to stderr
-func runAnalysis(graph *govis.Graph, opts govis.ParseOptions, flags analysisFlags) {
+func runAnalysis(graph *reqflow.Graph, opts reqflow.ParseOptions, flags analysisFlags) {
 	if flags.Deadcode {
 		runDeadcodeCheck(graph)
 	}
@@ -57,7 +57,7 @@ type analysisFlags struct {
 	AI           bool
 }
 
-func runDeadcodeCheck(graph *govis.Graph) {
+func runDeadcodeCheck(graph *reqflow.Graph) {
 	hasIncoming := make(map[string]bool)
 	for _, e := range graph.Edges {
 		hasIncoming[e.To] = true
@@ -66,7 +66,7 @@ func runDeadcodeCheck(graph *govis.Graph) {
 	fmt.Fprintf(os.Stderr, "\n💀 DEAD CODE / ORPHAN DETECTION:\n")
 	orphansFound := 0
 	for id, n := range graph.Nodes {
-		if n.Kind != govis.KindHandler && n.Kind != govis.KindFunc && n.Kind != govis.KindEvent {
+		if n.Kind != reqflow.KindHandler && n.Kind != reqflow.KindFunc && n.Kind != reqflow.KindEvent {
 			if !hasIncoming[id] {
 				fmt.Fprintf(os.Stderr, "  - Orphaned %s: %s (Location: %s:%d)\n", n.Kind, n.Name, n.File, n.Line)
 				orphansFound++
@@ -80,8 +80,8 @@ func runDeadcodeCheck(graph *govis.Graph) {
 	}
 }
 
-func runCycleCheck(graph *govis.Graph) {
-	detectedCycles := govis.DetectCycles(graph)
+func runCycleCheck(graph *reqflow.Graph) {
+	detectedCycles := reqflow.DetectCycles(graph)
 	fmt.Fprintf(os.Stderr, "\n🔄 CIRCULAR DEPENDENCY SCAN:\n")
 	if len(detectedCycles) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No circular dependencies found!\n")
@@ -101,8 +101,8 @@ func runCycleCheck(graph *govis.Graph) {
 	}
 }
 
-func runMetricsCheck(graph *govis.Graph) {
-	allMetrics := govis.ComputeMetrics(graph)
+func runMetricsCheck(graph *reqflow.Graph) {
+	allMetrics := reqflow.ComputeMetrics(graph)
 	fmt.Fprintf(os.Stderr, "\n📊 COUPLING METRICS:\n")
 	fmt.Fprintf(os.Stderr, "  %-30s %-12s %-8s %-8s %-8s\n", "COMPONENT", "KIND", "FAN-IN", "FAN-OUT", "RISK")
 	fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat("-", 75))
@@ -118,12 +118,12 @@ func runMetricsCheck(graph *govis.Graph) {
 	}
 }
 
-func runErrCheck(opts govis.ParseOptions) {
+func runErrCheck(opts reqflow.ParseOptions) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	errors := govis.DetectSwallowedErrors(pkgs)
+	errors := reqflow.DetectSwallowedErrors(pkgs)
 	fmt.Fprintf(os.Stderr, "\n⚠️  SWALLOWED ERROR DETECTION:\n")
 	if len(errors) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No swallowed errors found!\n")
@@ -135,12 +135,12 @@ func runErrCheck(opts govis.ParseOptions) {
 	}
 }
 
-func runSecurityCheck(opts govis.ParseOptions) {
+func runSecurityCheck(opts reqflow.ParseOptions) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	issues := govis.DetectSecurityIssues(pkgs)
+	issues := reqflow.DetectSecurityIssues(pkgs)
 	fmt.Fprintf(os.Stderr, "\n🔒 SECURITY ANTI-PATTERN SCAN:\n")
 	if len(issues) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No security issues found!\n")
@@ -158,12 +158,12 @@ func runSecurityCheck(opts govis.ParseOptions) {
 	}
 }
 
-func runTechDebtCheck(opts govis.ParseOptions, graph *govis.Graph) {
+func runTechDebtCheck(opts reqflow.ParseOptions, graph *reqflow.Graph) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	debts := govis.DetectTechDebt(pkgs, graph)
+	debts := reqflow.DetectTechDebt(pkgs, graph)
 	fmt.Fprintf(os.Stderr, "\n📌 TECHNICAL DEBT SCAN:\n")
 	if len(debts) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No TODO/FIXME/HACK comments found!\n")
@@ -175,8 +175,8 @@ func runTechDebtCheck(opts govis.ParseOptions, graph *govis.Graph) {
 	}
 }
 
-func runCoverageCheck(coverFile string, graph *govis.Graph) {
-	err := govis.LoadCoverageProfile(coverFile, graph)
+func runCoverageCheck(coverFile string, graph *reqflow.Graph) {
+	err := reqflow.LoadCoverageProfile(coverFile, graph)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  Could not load coverage profile: %v\n", err)
 		return
@@ -195,12 +195,12 @@ func runCoverageCheck(coverFile string, graph *govis.Graph) {
 	}
 }
 
-func runConstructorCheck(opts govis.ParseOptions, graph *govis.Graph) {
+func runConstructorCheck(opts reqflow.ParseOptions, graph *reqflow.Graph) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	missing := govis.DetectMissingConstructors(pkgs, graph)
+	missing := reqflow.DetectMissingConstructors(pkgs, graph)
 	fmt.Fprintf(os.Stderr, "\n🔨 CONSTRUCTOR VALIDATION:\n")
 	if len(missing) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ All structs have New*() constructors!\n")
@@ -212,12 +212,12 @@ func runConstructorCheck(opts govis.ParseOptions, graph *govis.Graph) {
 	}
 }
 
-func runDiffCheck(diffFile string, graph *govis.Graph) {
+func runDiffCheck(diffFile string, graph *reqflow.Graph) {
 	bytes, err := os.ReadFile(diffFile)
 	if err != nil {
 		return
 	}
-	var oldGraph govis.Graph
+	var oldGraph reqflow.Graph
 	if err := json.Unmarshal(bytes, &oldGraph); err != nil {
 		return
 	}
@@ -238,7 +238,7 @@ func runDiffCheck(diffFile string, graph *govis.Graph) {
 	fmt.Fprintf(os.Stderr, "✅ Injected architecture diff comparisons against %s.\n", diffFile)
 }
 
-func runAIReview(graph *govis.Graph) {
+func runAIReview(graph *reqflow.Graph) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		fmt.Fprintln(os.Stderr, "❌ Please set OPENAI_API_KEY environment variable to use -ai.")
@@ -262,7 +262,7 @@ func import_http_post(apiKey, body string) {
 }
 
 // loadPackages is a helper to load Go packages for analysis
-func loadPackages(opts govis.ParseOptions) []*packages.Package {
+func loadPackages(opts reqflow.ParseOptions) []*packages.Package {
 	pkgCfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Dir:  opts.Dir,
@@ -276,11 +276,11 @@ func loadPackages(opts govis.ParseOptions) []*packages.Package {
 
 // enforceThresholds checks if graph metrics exceed configured limits.
 // Exits 1 if any threshold is breached — designed for CI/CD pipelines.
-func enforceThresholds(graph *govis.Graph, cfg *govis.GovisConfig) {
+func enforceThresholds(graph *reqflow.Graph, cfg *reqflow.ReqflowConfig) {
 	failures := 0
 
 	if cfg.Thresholds.MaxCycles != nil {
-		cycles := govis.DetectCycles(graph)
+		cycles := reqflow.DetectCycles(graph)
 		if len(cycles) > *cfg.Thresholds.MaxCycles {
 			fmt.Fprintf(os.Stderr, "\n🚫 THRESHOLD BREACH: %d circular dependencies (max: %d)\n", len(cycles), *cfg.Thresholds.MaxCycles)
 			failures++
@@ -294,7 +294,7 @@ func enforceThresholds(graph *govis.Graph, cfg *govis.GovisConfig) {
 		}
 		orphans := 0
 		for id, n := range graph.Nodes {
-			if n.Kind != govis.KindHandler && n.Kind != govis.KindFunc && n.Kind != govis.KindEvent {
+			if n.Kind != reqflow.KindHandler && n.Kind != reqflow.KindFunc && n.Kind != reqflow.KindEvent {
 				if !hasIncoming[id] {
 					orphans++
 				}

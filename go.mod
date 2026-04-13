@@ -1,4 +1,4 @@
-module github.com/thzgajendra/govis
+module github.com/thzgajendra/reqflow
 
 go 1.25.0
 

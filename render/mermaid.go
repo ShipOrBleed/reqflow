@@ -5,17 +5,17 @@ import (
 	"io"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // Renderer defines standard graph output capability
 type Renderer interface {
-	Render(g *govis.Graph, w io.Writer) error
+	Render(g *reqflow.Graph, w io.Writer) error
 }
 
 type MermaidRenderer struct{}
 
-func (m *MermaidRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (m *MermaidRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "classDiagram")
 
 	// Render nodes inside clusters (packages)
@@ -38,27 +38,27 @@ func (m *MermaidRenderer) Render(g *govis.Graph, w io.Writer) error {
 		toID := sanitizeID(edge.To)
 		
 		switch edge.Kind {
-		case govis.EdgeImplements:
+		case reqflow.EdgeImplements:
 			fmt.Fprintf(w, "  %s ..|> %s : implements\n", fromID, toID)
-		case govis.EdgeDepends:
+		case reqflow.EdgeDepends:
 			fmt.Fprintf(w, "  %s --> %s : depends\n", fromID, toID)
-		case govis.EdgeEmbeds:
+		case reqflow.EdgeEmbeds:
 			fmt.Fprintf(w, "  %s --|> %s : embeds\n", fromID, toID)
-		case govis.EdgeCalls:
+		case reqflow.EdgeCalls:
 			fmt.Fprintf(w, "  %s -..-> %s : calls\n", fromID, toID)
-		case govis.EdgeFlows:
+		case reqflow.EdgeFlows:
 			fmt.Fprintf(w, "  %s ===> %s : flows\n", fromID, toID)
-		case govis.EdgeReads:
+		case reqflow.EdgeReads:
 			fmt.Fprintf(w, "  %s -.-> %s : reads\n", fromID, toID)
-		case govis.EdgeMapsTo:
+		case reqflow.EdgeMapsTo:
 			fmt.Fprintf(w, "  %s --o %s : maps_to\n", fromID, toID)
-		case govis.EdgePublishes:
+		case reqflow.EdgePublishes:
 			fmt.Fprintf(w, "  %s -..-> %s : publishes\n", fromID, toID)
-		case govis.EdgeSubscribes:
+		case reqflow.EdgeSubscribes:
 			fmt.Fprintf(w, "  %s <-..- %s : subscribes\n", fromID, toID)
-		case govis.EdgeRPC:
+		case reqflow.EdgeRPC:
 			fmt.Fprintf(w, "  %s <==> %s : rpc\n", fromID, toID)
-		case govis.EdgeTransitive:
+		case reqflow.EdgeTransitive:
 			fmt.Fprintf(w, "  %s -.-> %s : transitive\n", fromID, toID)
 		default:
 			fmt.Fprintf(w, "  %s --> %s\n", fromID, toID)
@@ -96,21 +96,21 @@ func (m *MermaidRenderer) Render(g *govis.Graph, w io.Writer) error {
 		}
 
 		switch node.Kind {
-		case govis.KindHandler:
+		case reqflow.KindHandler:
 			fmt.Fprintf(w, "  class %s handler\n", sanitizeID(node.ID))
-		case govis.KindService:
+		case reqflow.KindService:
 			fmt.Fprintf(w, "  class %s service\n", sanitizeID(node.ID))
-		case govis.KindStore:
+		case reqflow.KindStore:
 			fmt.Fprintf(w, "  class %s store\n", sanitizeID(node.ID))
-		case govis.KindModel:
+		case reqflow.KindModel:
 			fmt.Fprintf(w, "  class %s model\n", sanitizeID(node.ID))
-		case govis.KindEvent:
+		case reqflow.KindEvent:
 			fmt.Fprintf(w, "  class %s event\n", sanitizeID(node.ID))
-		case govis.KindMiddleware:
+		case reqflow.KindMiddleware:
 			fmt.Fprintf(w, "  class %s middleware\n", sanitizeID(node.ID))
-		case govis.KindGRPC:
+		case reqflow.KindGRPC:
 			fmt.Fprintf(w, "  class %s grpc\n", sanitizeID(node.ID))
-		case govis.KindInfra:
+		case reqflow.KindInfra:
 			fmt.Fprintf(w, "  class %s infra\n", sanitizeID(node.ID))
 		}
 		
@@ -159,23 +159,23 @@ func (m *MermaidRenderer) Render(g *govis.Graph, w io.Writer) error {
 	return nil
 }
 
-func (m *MermaidRenderer) renderNode(w io.Writer, n *govis.Node) {
+func (m *MermaidRenderer) renderNode(w io.Writer, n *reqflow.Node) {
 	nodeID := sanitizeID(n.ID)
 	
 	fmt.Fprintf(w, "    class %s {\n", nodeID)
 
 	switch n.Kind {
-	case govis.KindInterface:
+	case reqflow.KindInterface:
 		fmt.Fprintln(w, "      <<interface>>")
-	case govis.KindHandler:
+	case reqflow.KindHandler:
 		fmt.Fprintln(w, "      <<handler>>")
-	case govis.KindService:
+	case reqflow.KindService:
 		fmt.Fprintln(w, "      <<service>>")
-	case govis.KindStore:
+	case reqflow.KindStore:
 		fmt.Fprintln(w, "      <<store>>")
-	case govis.KindModel:
+	case reqflow.KindModel:
 		fmt.Fprintln(w, "      <<model>>")
-	case govis.KindFunc:
+	case reqflow.KindFunc:
 		fmt.Fprintln(w, "      <<function>>")
 	}
 

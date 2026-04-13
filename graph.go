@@ -5,14 +5,14 @@
 //
 // Install the CLI:
 //
-//	go install github.com/thzgajendra/govis/cmd/govis@latest
+//	go install github.com/thzgajendra/reqflow/cmd/govis@latest
 //
 // Use as a library:
 //
-//	graph, err := govis.Parse(govis.ParseOptions{Dir: "."})
+//	graph, err := reqflow.Parse(reqflow.ParseOptions{Dir: "."})
 //	renderer := &render.InteractiveRenderer{}
 //	renderer.Render(graph, os.Stdout)
-package govis
+package reqflow
 
 // NodeKind classifies a graph node into an architectural layer.
 type NodeKind string

@@ -1,4 +1,4 @@
-package govis
+package reqflow
 
 import (
 	"os"
@@ -7,8 +7,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// GovisConfig represents the .govis.yml configuration schema.
-type GovisConfig struct {
+// ReqflowConfig represents the .reqflow.yml configuration schema.
+type ReqflowConfig struct {
 	Linter struct {
 		VetRules []string `yaml:"vet_rules"`
 	} `yaml:"linter"`
@@ -32,14 +32,14 @@ type GovisConfig struct {
 	ModelRegex   *regexp.Regexp `yaml:"-"`
 }
 
-// LoadConfig reads and parses a .govis.yml configuration file.
-func LoadConfig(path string) (*GovisConfig, error) {
+// LoadConfig reads and parses a .reqflow.yml configuration file.
+func LoadConfig(path string) (*ReqflowConfig, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var cfg GovisConfig
+	var cfg ReqflowConfig
 	if err := yaml.Unmarshal(bytes, &cfg); err != nil {
 		return nil, err
 	}

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // InteractiveRenderer generates a self-contained HTML page focused on helping
@@ -39,7 +39,7 @@ type iData struct {
 	Edges []iEdge `json:"edges"`
 }
 
-func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (ir *InteractiveRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	d := iData{}
 
 	for _, node := range g.Nodes {
@@ -89,7 +89,7 @@ func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
 var tmpl = `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><title>Govis — Understand Your Backend</title>
+<meta charset="utf-8"><title>Reqflow — Understand Your Backend</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0f1117;--surface:#181b23;--surface2:#1f232d;--card:#1a1e28;--border:#262a36;--accent:#38bdf8;--text:#e2e8f0;--muted:#6b7280;--green:#34d399;--blue:#60a5fa;--yellow:#fbbf24;--red:#f87171;--purple:#a78bfa;--teal:#2dd4bf;--orange:#fb923c}
@@ -170,7 +170,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 </head>
 <body>
 <div class="hdr">
-<div class="logo">GOVIS<span>.arch</span></div>
+<div class="logo">REQFLOW<span>.arch</span></div>
 <div class="tabs">
 <div class="tab on" onclick="setTab('explore')">Explore APIs</div>
 <div class="tab" onclick="setTab('overview')">Architecture</div>

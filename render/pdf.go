@@ -6,7 +6,7 @@ import (
 	"io"
 	"os/exec"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // PDFRenderer generates a PDF by first rendering to DOT format and then
@@ -14,7 +14,7 @@ import (
 // Falls back to DOT output with instructions if Graphviz is not installed.
 type PDFRenderer struct{}
 
-func (p *PDFRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (p *PDFRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	// First render to DOT format
 	var dotBuf bytes.Buffer
 	dot := &DOTRenderer{}

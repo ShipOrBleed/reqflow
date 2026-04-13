@@ -5,25 +5,25 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 type HTMLRenderer struct{}
 
-func (h *HTMLRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (h *HTMLRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	var buf bytes.Buffer
 	m := &MermaidRenderer{}
 	if err := m.Render(g, &buf); err != nil {
 		return err
 	}
 
-	summaryHTML := govis.GetSummaryHTML(g)
+	summaryHTML := reqflow.GetSummaryHTML(g)
 
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Govis Enterprise Dashboard</title>
+    <title>Reqflow Enterprise Dashboard</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -84,7 +84,7 @@ func (h *HTMLRenderer) Render(g *govis.Graph, w io.Writer) error {
 </head>
 <body>
     <header>
-        <div class="logo">GOVIS<span>.arch</span></div>
+        <div class="logo">REQFLOW<span>.arch</span></div>
         <div style="display: flex; gap: 1rem; align-items: center;">
             <div style="font-size: 0.8rem; color: var(--text-muted);">ENTERPRISE EDITION</div>
             <div style="width: 8px; height: 8px; border-radius: 50%%; background: #22c55e; box-shadow: 0 0 8px #22c55e;"></div>
@@ -111,7 +111,7 @@ func (h *HTMLRenderer) Render(g *govis.Graph, w io.Writer) error {
 
             <section style="margin-top: auto;">
                 <p style="font-size: 0.75rem; color: var(--text-muted);">
-                    Govis automatically infers these layers using DDD and framework naming heuristics.
+                    Reqflow automatically infers these layers using DDD and framework naming heuristics.
                 </p>
             </section>
         </div>

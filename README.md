@@ -1,14 +1,14 @@
-# govis
+# reqflow
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/thzgajendra/govis.svg)](https://pkg.go.dev/github.com/thzgajendra/govis)
-[![Go Report Card](https://goreportcard.com/badge/github.com/thzgajendra/govis)](https://goreportcard.com/report/github.com/thzgajendra/govis)
-[![CI](https://github.com/thzgajendra/govis/actions/workflows/ci.yml/badge.svg)](https://github.com/thzgajendra/govis/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/thzgajendra/reqflow.svg)](https://pkg.go.dev/github.com/thzgajendra/reqflow)
+[![Go Report Card](https://goreportcard.com/badge/github.com/thzgajendra/reqflow)](https://goreportcard.com/report/github.com/thzgajendra/reqflow)
+[![CI](https://github.com/thzgajendra/reqflow/actions/workflows/ci.yml/badge.svg)](https://github.com/thzgajendra/reqflow/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **Trace any HTTP request through your Go codebase, statically.**
 
 ```bash
-govis trace "POST /orders" ./...
+reqflow trace "POST /orders" ./...
 ```
 
 Shows you the complete path: handler → service → store → database table → external calls.
@@ -22,27 +22,27 @@ You just joined a team. There's a bug in `POST /orders`. Where do you even start
 
 You grep for the route, find the handler, cmd-click into the service, cmd-click again into the repo, then go look at struct tags to figure out what database table it's writing to. You do this every time, for every repo, for every bug.
 
-**govis automates that entire workflow.**
+**reqflow automates that entire workflow.**
 
 ---
 
 ## Quick Start
 
 ```bash
-go install github.com/thzgajendra/govis/cmd/govis@latest
+go install github.com/thzgajendra/reqflow/cmd/reqflow@latest
 ```
 
 ### Trace a request path
 
 ```bash
 # Show what happens when POST /orders is called
-govis trace "POST /orders" ./...
+reqflow trace "POST /orders" ./...
 
 # Partial match — finds any route containing "orders"
-govis trace "orders" ./...
+reqflow trace "orders" ./...
 
 # Output as self-contained HTML
-govis trace -format html -out trace.html "POST /orders" ./...
+reqflow trace -format html -out trace.html "POST /orders" ./...
 ```
 
 **Example output:**
@@ -88,7 +88,7 @@ POST /orders
 For a full visual overview of your codebase:
 
 ```bash
-govis -format interactive -out explorer.html ./...
+reqflow -format interactive -out explorer.html ./...
 open explorer.html
 ```
 
@@ -105,7 +105,7 @@ open explorer.html
 ### Trace (primary feature)
 
 ```bash
-govis trace [flags] <route> [packages]
+reqflow trace [flags] <route> [packages]
 
 Flags:
   -format text|html    Output format (default: text)
@@ -114,15 +114,15 @@ Flags:
   -envmap              Resolve environment variable reads
 
 Examples:
-  govis trace "POST /orders" ./...
-  govis trace "/orders" ./...                     # path-only, any method
-  govis trace -format html -out t.html "orders"   # partial match, HTML output
+  reqflow trace "POST /orders" ./...
+  reqflow trace "/orders" ./...                     # path-only, any method
+  reqflow trace -format html -out t.html "orders"   # partial match, HTML output
 ```
 
 ### Visualize
 
 ```bash
-govis [flags] [packages]
+reqflow [flags] [packages]
 
 Output formats (-format):
   interactive   Clickable explorer — Explore APIs / Architecture / Packages (default for browsers)
@@ -176,7 +176,7 @@ Store detection works for: `*sql.DB`, `*sqlx.DB`, `*gorm.DB`, `*mongo.Client`, `
 
 ## How It Works
 
-govis uses Go's type system — not grep, not regexes. It loads your packages with `golang.org/x/tools/go/packages`, walks the AST, and:
+reqflow uses Go's type system — not grep, not regexes. It loads your packages with `golang.org/x/tools/go/packages`, walks the AST, and:
 
 1. **Classifies types structurally**: a store is a struct that holds a `*sql.DB` (not one named `*Store`), a handler is a struct whose methods accept a framework context
 2. **Builds dependency edges** from struct fields and constructor parameters
@@ -189,7 +189,7 @@ Works offline, in CI, and on codebases you've never seen before.
 
 ## Configuration
 
-Create `.govis.yml` in your project root:
+Create `.reqflow.yml` in your project root:
 
 ```yaml
 parser:
@@ -206,7 +206,7 @@ layers:
 Generate a starter config:
 
 ```bash
-govis init
+reqflow init
 ```
 
 ---
@@ -215,13 +215,13 @@ govis init
 
 ```bash
 # Latest
-go install github.com/thzgajendra/govis/cmd/govis@latest
+go install github.com/thzgajendra/reqflow/cmd/reqflow@latest
 
 # Specific version
-go install github.com/thzgajendra/govis/cmd/govis@v0.2.0
+go install github.com/thzgajendra/reqflow/cmd/reqflow@v0.2.0
 ```
 
-Or download a binary from [Releases](https://github.com/thzgajendra/govis/releases).
+Or download a binary from [Releases](https://github.com/thzgajendra/reqflow/releases).
 
 ---
 

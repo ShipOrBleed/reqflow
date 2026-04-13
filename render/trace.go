@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // TraceRenderer renders a single request-path trace as a focused,
@@ -15,23 +15,23 @@ type TraceRenderer struct {
 }
 
 // traceIcon returns a single-letter badge for each node kind (used in trace output).
-func traceIcon(k govis.NodeKind) string {
+func traceIcon(k reqflow.NodeKind) string {
 	switch k {
-	case govis.KindHandler:
+	case reqflow.KindHandler:
 		return "H"
-	case govis.KindService:
+	case reqflow.KindService:
 		return "S"
-	case govis.KindStore:
+	case reqflow.KindStore:
 		return "D"
-	case govis.KindModel:
+	case reqflow.KindModel:
 		return "M"
-	case govis.KindInterface:
+	case reqflow.KindInterface:
 		return "I"
-	case govis.KindGRPC:
+	case reqflow.KindGRPC:
 		return "G"
-	case govis.KindEvent:
+	case reqflow.KindEvent:
 		return "E"
-	case govis.KindMiddleware:
+	case reqflow.KindMiddleware:
 		return "MW"
 	default:
 		return "?"
@@ -39,23 +39,23 @@ func traceIcon(k govis.NodeKind) string {
 }
 
 // kindLabel returns a human-readable layer name.
-func kindLabel(k govis.NodeKind) string {
+func kindLabel(k reqflow.NodeKind) string {
 	switch k {
-	case govis.KindHandler:
+	case reqflow.KindHandler:
 		return "HTTP Handler"
-	case govis.KindService:
+	case reqflow.KindService:
 		return "Service"
-	case govis.KindStore:
+	case reqflow.KindStore:
 		return "Store / Repository"
-	case govis.KindModel:
+	case reqflow.KindModel:
 		return "Data Model"
-	case govis.KindInterface:
+	case reqflow.KindInterface:
 		return "Interface"
-	case govis.KindGRPC:
+	case reqflow.KindGRPC:
 		return "gRPC Service"
-	case govis.KindEvent:
+	case reqflow.KindEvent:
 		return "Event / Topic"
-	case govis.KindMiddleware:
+	case reqflow.KindMiddleware:
 		return "Middleware"
 	default:
 		return string(k)
@@ -63,7 +63,7 @@ func kindLabel(k govis.NodeKind) string {
 }
 
 // RenderTrace writes a TraceResult to w in either text or HTML format.
-func (tr *TraceRenderer) RenderTrace(result *govis.TraceResult, w io.Writer) error {
+func (tr *TraceRenderer) RenderTrace(result *reqflow.TraceResult, w io.Writer) error {
 	if tr.Format == "html" {
 		return renderTraceHTML(result, w)
 	}
@@ -85,24 +85,24 @@ const (
 	gray   = "\033[90m"
 )
 
-var kindColor = map[govis.NodeKind]string{
-	govis.KindHandler:   green,
-	govis.KindService:   blue,
-	govis.KindStore:     yellow,
-	govis.KindModel:     red,
-	govis.KindInterface: cyan,
-	govis.KindGRPC:      cyan,
-	govis.KindEvent:     gray,
+var kindColor = map[reqflow.NodeKind]string{
+	reqflow.KindHandler:   green,
+	reqflow.KindService:   blue,
+	reqflow.KindStore:     yellow,
+	reqflow.KindModel:     red,
+	reqflow.KindInterface: cyan,
+	reqflow.KindGRPC:      cyan,
+	reqflow.KindEvent:     gray,
 }
 
-func color(k govis.NodeKind) string {
+func color(k reqflow.NodeKind) string {
 	if c, ok := kindColor[k]; ok {
 		return c
 	}
 	return white
 }
 
-func renderTraceText(r *govis.TraceResult, w io.Writer) error {
+func renderTraceText(r *reqflow.TraceResult, w io.Writer) error {
 	if r.NotFound {
 		fmt.Fprintf(w, "\n%s✗ No handler found matching: %q%s\n\n", red, r.Route, reset)
 		fmt.Fprintf(w, "  Hint: run  govis -format json ./...  and search Meta[\"routes\"]\n")
@@ -121,7 +121,7 @@ func renderTraceText(r *govis.TraceResult, w io.Writer) error {
 		// Arrow between steps
 		if i > 0 {
 			prev := r.Chain[i-1]
-			edgeLabel := govis.EdgeLabel(prev, node)
+			edgeLabel := reqflow.EdgeLabel(prev, node)
 			fmt.Fprintf(w, "  %s│%s\n", gray, reset)
 			fmt.Fprintf(w, "  %s↓  %s%s\n", gray, edgeLabel, reset)
 			fmt.Fprintf(w, "  %s│%s\n", gray, reset)
@@ -151,7 +151,7 @@ func renderTraceText(r *govis.TraceResult, w io.Writer) error {
 		}
 
 		// Fields for models
-		if node.Kind == govis.KindModel && len(node.Fields) > 0 {
+		if node.Kind == reqflow.KindModel && len(node.Fields) > 0 {
 			fields := make([]string, 0, len(node.Fields))
 			for _, f := range node.Fields {
 				if f.Name != "" && !strings.Contains(f.Name, ".") {
@@ -167,7 +167,7 @@ func renderTraceText(r *govis.TraceResult, w io.Writer) error {
 		}
 
 		// Route for handler
-		if node.Kind == govis.KindHandler {
+		if node.Kind == reqflow.KindHandler {
 			routes := routeList(node)
 			if len(routes) > 1 {
 				fmt.Fprintf(w, "       All routes (%d): %s%s%s\n", len(routes), gray, strings.Join(routes[:min(3, len(routes))], ", "), reset)
@@ -220,7 +220,7 @@ func shortFile(file string, line int) string {
 	return strings.Join(parts, "/")
 }
 
-func routeList(n *govis.Node) []string {
+func routeList(n *reqflow.Node) []string {
 	raw := n.Meta["routes"]
 	if raw == "" {
 		raw = n.Meta["route"]
@@ -243,7 +243,7 @@ func min(a, b int) int {
 
 // ─── HTML renderer ────────────────────────────────────────────────────────────
 
-func renderTraceHTML(r *govis.TraceResult, w io.Writer) error {
+func renderTraceHTML(r *reqflow.TraceResult, w io.Writer) error {
 	if r.NotFound {
 		fmt.Fprintf(w, `<!DOCTYPE html><html><body style="font-family:monospace;padding:40px">
 <h2 style="color:#f87171">✗ No handler found matching %q</h2>
@@ -259,7 +259,7 @@ func renderTraceHTML(r *govis.TraceResult, w io.Writer) error {
 	return nil
 }
 
-func buildHTMLSteps(r *govis.TraceResult) string {
+func buildHTMLSteps(r *reqflow.TraceResult) string {
 	var sb strings.Builder
 	for i, node := range r.Chain {
 		c := htmlKindColor(node.Kind)
@@ -268,7 +268,7 @@ func buildHTMLSteps(r *govis.TraceResult) string {
 
 		if i > 0 {
 			prev := r.Chain[i-1]
-			edge := govis.EdgeLabel(prev, node)
+			edge := reqflow.EdgeLabel(prev, node)
 			sb.WriteString(`<div class="arrow">↓ ` + edge + `</div>`)
 		}
 
@@ -311,7 +311,7 @@ func buildHTMLSteps(r *govis.TraceResult) string {
 		}
 
 		// Fields for models
-		if node.Kind == govis.KindModel && len(node.Fields) > 0 {
+		if node.Kind == reqflow.KindModel && len(node.Fields) > 0 {
 			sb.WriteString(`<div class="step-fields">`)
 			for i, f := range node.Fields {
 				if i >= 10 || strings.Contains(f.Name, ".") {
@@ -330,7 +330,7 @@ func buildHTMLSteps(r *govis.TraceResult) string {
 	return sb.String()
 }
 
-func buildHTMLExtras(r *govis.TraceResult) string {
+func buildHTMLExtras(r *reqflow.TraceResult) string {
 	if len(r.Tables) == 0 && len(r.EnvVars) == 0 {
 		return ""
 	}
@@ -354,19 +354,19 @@ func buildHTMLExtras(r *govis.TraceResult) string {
 	return sb.String()
 }
 
-func htmlKindColor(k govis.NodeKind) string {
+func htmlKindColor(k reqflow.NodeKind) string {
 	switch k {
-	case govis.KindHandler:
+	case reqflow.KindHandler:
 		return "#34d399"
-	case govis.KindService:
+	case reqflow.KindService:
 		return "#60a5fa"
-	case govis.KindStore:
+	case reqflow.KindStore:
 		return "#fbbf24"
-	case govis.KindModel:
+	case reqflow.KindModel:
 		return "#f87171"
-	case govis.KindInterface:
+	case reqflow.KindInterface:
 		return "#a78bfa"
-	case govis.KindGRPC:
+	case reqflow.KindGRPC:
 		return "#2dd4bf"
 	default:
 		return "#6b7280"
@@ -411,13 +411,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <body>
 <div class="container">
 <div class="header">
-<div class="label">GOVIS TRACE</div>
+<div class="label">REQFLOW TRACE</div>
 <h1>%s</h1>
 <p>Complete static request path through your Go codebase</p>
 </div>
 %s
 %s
-<div class="govis-link"><a href="https://github.com/thzgajendra/govis">govis</a></div>
+<div class="govis-link"><a href="https://github.com/thzgajendra/reqflow">govis</a></div>
 </div>
 </body>
 </html>`

@@ -5,16 +5,16 @@ import (
 	"io"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // TimelineRenderer generates a Markdown timeline showing architecture evolution
 // across git tags/releases.
 type TimelineRenderer struct {
-	Snapshots []govis.EvolutionSnapshot
+	Snapshots []reqflow.EvolutionSnapshot
 }
 
-func (t *TimelineRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (t *TimelineRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	if len(t.Snapshots) == 0 {
 		fmt.Fprintln(w, "No evolution snapshots available.")
 		return nil
@@ -37,7 +37,7 @@ func (t *TimelineRenderer) Render(g *govis.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "")
 
 	// Collect all kinds
-	allKinds := make(map[govis.NodeKind]bool)
+	allKinds := make(map[reqflow.NodeKind]bool)
 	for _, s := range t.Snapshots {
 		for k := range s.KindCount {
 			allKinds[k] = true

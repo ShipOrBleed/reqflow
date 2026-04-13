@@ -6,12 +6,12 @@ import (
 )
 
 const govisYAMLTemplate = `# ===========================================
-# Govis Configuration File
+# Reqflow Configuration File
 # ===========================================
 # Place this file at the root of your Go project.
-# Govis will auto-detect and load it on every run.
+# Reqflow will auto-detect and load it on every run.
 #
-# Documentation: https://github.com/thzgajendra/govis
+# Documentation: https://github.com/thzgajendra/reqflow
 
 # Architecture linting rules.
 # Format: "from_kind!to_kind" — fails CI if this dependency exists.
@@ -30,7 +30,7 @@ parser:
     - "testdata"
     - "generated"
 
-  # Govis automatically detects layers based on struct suffixes AND package names
+  # Reqflow automatically detects layers based on struct suffixes AND package names
   # (e.g., standard "Service", "Repository" logic OR "biz/", "adapter/" directories).
   # You can bypass the auto-detection completely by specifying strict regex rules below:
   # domain_naming:
@@ -46,20 +46,20 @@ thresholds:
   # max_security_issues: 0 # Uncomment to fail on any security finding
 `
 
-// generateInitConfig creates a starter .govis.yml in the current directory.
+// generateInitConfig creates a starter .reqflow.yml in the current directory.
 func generateInitConfig() {
-	path := ".govis.yml"
+	path := ".reqflow.yml"
 
 	if _, err := os.Stat(path); err == nil {
-		fmt.Fprintf(os.Stderr, "⚠️  .govis.yml already exists. Remove it first to regenerate.\n")
+		fmt.Fprintf(os.Stderr, "⚠️  .reqflow.yml already exists. Remove it first to regenerate.\n")
 		return
 	}
 
 	if err := os.WriteFile(path, []byte(govisYAMLTemplate), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ Failed to create .govis.yml: %v\n", err)
+		fmt.Fprintf(os.Stderr, "❌ Failed to create .reqflow.yml: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "✅ Created .govis.yml with default configuration.\n")
+	fmt.Fprintf(os.Stderr, "✅ Created .reqflow.yml with default configuration.\n")
 	fmt.Fprintf(os.Stderr, "   Edit it to customize architecture rules for your project.\n")
 }

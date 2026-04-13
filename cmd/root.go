@@ -7,17 +7,17 @@ import (
 	"os"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
-	"github.com/thzgajendra/govis/render"
+	reqflow "github.com/thzgajendra/reqflow"
+	"github.com/thzgajendra/reqflow/render"
 )
 
-// Execute is the main CLI entrypoint for govis.
+// Execute is the main CLI entrypoint for reqflow.
 func Execute() {
 	// Handle subcommands before flag parsing
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version":
-			fmt.Printf("govis %s\n", govis.Version)
+			fmt.Printf("reqflow %s\n", reqflow.Version)
 			return
 		case "init":
 			generateInitConfig()
@@ -77,13 +77,13 @@ func Execute() {
 	}
 
 	// ---- Configuration Loading ----
-	var loadedConfig *govis.GovisConfig
-	if cfg, err := govis.LoadConfig(".govis.yml"); err == nil {
+	var loadedConfig *reqflow.ReqflowConfig
+	if cfg, err := reqflow.LoadConfig(".reqflow.yml"); err == nil {
 		loadedConfig = cfg
-		fmt.Fprintf(os.Stderr, "⚙️  Loaded configuration from .govis.yml\n")
+		fmt.Fprintf(os.Stderr, "⚙️  Loaded configuration from .reqflow.yml\n")
 	}
 
-	opts := govis.ParseOptions{
+	opts := reqflow.ParseOptions{
 		Dir:    dir,
 		Filter: *filter,
 		Focus:  *focus,
@@ -123,14 +123,14 @@ func Execute() {
 	}
 
 	// ---- Parse ----
-	graph, err := govis.Parse(opts)
+	graph, err := reqflow.Parse(opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing packages: %v\n", err)
 		os.Exit(1)
 	}
 
 	// ---- Always Print Summary ----
-	govis.PrintSummary(graph, os.Stderr)
+	reqflow.PrintSummary(graph, os.Stderr)
 
 	// ---- Architecture Linting ----
 	var activeVetRules []string
@@ -172,7 +172,7 @@ func Execute() {
 	// ---- Evolution Timeline ----
 	if *evolution != "" {
 		refs := strings.Split(*evolution, ",")
-		snapshots := govis.ExtractEvolution(dir, refs, opts)
+		snapshots := reqflow.ExtractEvolution(dir, refs, opts)
 		tr := &render.TimelineRenderer{Snapshots: snapshots}
 		w := os.Stdout
 		if *out != "" {
@@ -246,7 +246,7 @@ func Execute() {
 
 func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 	files := strings.Split(filesStr, ",")
-	var graphs []*govis.Graph
+	var graphs []*reqflow.Graph
 
 	for _, f := range files {
 		data, err := os.ReadFile(strings.TrimSpace(f))
@@ -254,7 +254,7 @@ func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 			fmt.Fprintf(os.Stderr, "Error reading stitch file %s: %v\n", f, err)
 			os.Exit(1)
 		}
-		var g govis.Graph
+		var g reqflow.Graph
 		if err := json.Unmarshal(data, &g); err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing JSON from %s: %v\n", f, err)
 			os.Exit(1)
@@ -262,15 +262,15 @@ func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 		graphs = append(graphs, &g)
 	}
 
-	var merged *govis.Graph
+	var merged *reqflow.Graph
 	if withServiceMap {
-		merged = govis.StitchWithServiceMap(graphs)
+		merged = reqflow.StitchWithServiceMap(graphs)
 	} else {
-		merged = govis.Stitch(graphs)
+		merged = reqflow.Stitch(graphs)
 	}
 	
 	// Print summary of merged graph
-	govis.PrintSummary(merged, os.Stderr)
+	reqflow.PrintSummary(merged, os.Stderr)
 
 	var r render.Renderer
 	switch format {
@@ -296,7 +296,7 @@ func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 }
 
 // runVetRules checks architecture rules and exits 1 on violations
-func runVetRules(rules []string, graph *govis.Graph) {
+func runVetRules(rules []string, graph *reqflow.Graph) {
 	violations := 0
 	for _, rule := range rules {
 		parts := strings.Split(rule, "!")
@@ -323,8 +323,8 @@ func runVetRules(rules []string, graph *govis.Graph) {
 			continue
 		}
 
-		fromKind := govis.NodeKind(parts[0])
-		toKind := govis.NodeKind(parts[1])
+		fromKind := reqflow.NodeKind(parts[0])
+		toKind := reqflow.NodeKind(parts[1])
 
 		for _, edge := range graph.Edges {
 			fromNode := graph.Nodes[edge.From]
@@ -381,20 +381,20 @@ func runTrace(args []string) {
 		dir = fs.Arg(1)
 	}
 
-	opts := govis.ParseOptions{
+	opts := reqflow.ParseOptions{
 		Dir:      dir,
 		TableMap: *tableMap,
 		EnvMap:   *envMap,
 	}
 
 	fmt.Fprintf(os.Stderr, "Analyzing %s...\n", dir)
-	graph, err := govis.Parse(opts)
+	graph, err := reqflow.Parse(opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
 		os.Exit(1)
 	}
 
-	result := govis.Trace(route, graph)
+	result := reqflow.Trace(route, graph)
 
 	w := os.Stdout
 	if *outPath != "" {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // ThreeRenderer generates a self-contained HTML page with Three.js and
@@ -31,7 +31,7 @@ type threeGraph struct {
 	Links []threeEdge `json:"links"`
 }
 
-func (t *ThreeRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (t *ThreeRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	tg := threeGraph{}
 
 	// Count connections per node for sizing
@@ -76,7 +76,7 @@ var threeTemplate = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Govis 3D Architecture</title>
+    <title>Reqflow 3D Architecture</title>
     <style>
         body { margin: 0; background: #0f172a; overflow: hidden; font-family: system-ui, sans-serif; }
         #info {
@@ -97,7 +97,7 @@ var threeTemplate = `<!DOCTYPE html>
 </head>
 <body>
     <div id="info">
-        <h2>GOVIS.3d</h2>
+        <h2>REQFLOW.3d</h2>
         <p>Drag to rotate, scroll to zoom</p>
         <p>Click a node for details</p>
     </div>

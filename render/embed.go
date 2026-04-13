@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // EmbedRenderer generates a self-contained HTML snippet that can be pasted
@@ -13,14 +13,14 @@ import (
 // It inlines Mermaid JS so there are no external CDN dependencies.
 type EmbedRenderer struct{}
 
-func (e *EmbedRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (e *EmbedRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	var mermaidBuf bytes.Buffer
 	m := &MermaidRenderer{}
 	if err := m.Render(g, &mermaidBuf); err != nil {
 		return fmt.Errorf("generating mermaid: %w", err)
 	}
 
-	summaryHTML := govis.GetSummaryHTML(g)
+	summaryHTML := reqflow.GetSummaryHTML(g)
 
 	fmt.Fprintf(w, embedTemplate, summaryHTML, mermaidBuf.String())
 	return nil
@@ -28,7 +28,7 @@ func (e *EmbedRenderer) Render(g *govis.Graph, w io.Writer) error {
 
 var embedTemplate = `<div style="font-family:system-ui,sans-serif;background:#0f172a;color:#f8fafc;border-radius:12px;padding:1.5rem;max-width:100%%;overflow:auto;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-    <span style="font-size:1.2rem;font-weight:700;color:#38bdf8;">GOVIS<span style="color:#f8fafc;font-weight:400;">.embed</span></span>
+    <span style="font-size:1.2rem;font-weight:700;color:#38bdf8;">REQFLOW<span style="color:#f8fafc;font-weight:400;">.embed</span></span>
     <span style="font-size:0.7rem;color:#94a3b8;">Architecture Snapshot</span>
   </div>
   %s

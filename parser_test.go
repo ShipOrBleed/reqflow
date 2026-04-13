@@ -1,4 +1,4 @@
-package govis
+package reqflow
 
 import (
 	"os"
@@ -462,7 +462,7 @@ func TestExtractTagValue(t *testing.T) {
 // ==================== Config ====================
 
 func TestLoadConfigMissing(t *testing.T) {
-	_, err := LoadConfig("/nonexistent/.govis.yml")
+	_, err := LoadConfig("/nonexistent/.reqflow.yml")
 	if err == nil {
 		t.Error("Expected error for missing config file")
 	}
@@ -484,9 +484,9 @@ parser:
 thresholds:
   max_cycles: 3
 `
-	os.WriteFile(filepath.Join(dir, ".govis.yml"), []byte(configContent), 0644)
+	os.WriteFile(filepath.Join(dir, ".reqflow.yml"), []byte(configContent), 0644)
 
-	cfg, err := LoadConfig(filepath.Join(dir, ".govis.yml"))
+	cfg, err := LoadConfig(filepath.Join(dir, ".reqflow.yml"))
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}

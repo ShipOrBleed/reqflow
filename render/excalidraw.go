@@ -8,7 +8,7 @@ import (
 	"io"
 	"sort"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // ExcalidrawRenderer generates an Excalidraw JSON file (.excalidraw)
@@ -79,14 +79,14 @@ var excalidrawColors = map[string]string{
 	"proto_msg":  "#fcc2d7",
 }
 
-func (e *ExcalidrawRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (e *ExcalidrawRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	var elements []excalidrawElement
 	nodePositions := make(map[string][2]float64) // node ID → [x, y]
 
 	// Sort nodes by package for grid layout
 	type nodeEntry struct {
 		id   string
-		node *govis.Node
+		node *reqflow.Node
 	}
 	var sorted []nodeEntry
 	for id, node := range g.Nodes {
@@ -198,7 +198,7 @@ func (e *ExcalidrawRenderer) Render(g *govis.Graph, w io.Writer) error {
 	file := excalidrawFile{
 		Type:     "excalidraw",
 		Version:  2,
-		Source:    "govis",
+		Source:    "reqflow",
 		Elements: elements,
 		AppState: map[string]any{
 			"gridSize":        20,

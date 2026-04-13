@@ -5,16 +5,16 @@ import (
 	"net/http"
 	"os"
 
-	govis "github.com/thzgajendra/govis"
-	"github.com/thzgajendra/govis/render"
+	reqflow "github.com/thzgajendra/reqflow"
+	"github.com/thzgajendra/reqflow/render"
 )
 
 // startServer launches the live HTTP visualization daemon
-func startServer(addr string, opts govis.ParseOptions) {
-	fmt.Fprintf(os.Stderr, "\n🚀  Govis is LIVE! Watching codebase.\n    Open: http://localhost%s\n\n", addr)
+func startServer(addr string, opts reqflow.ParseOptions) {
+	fmt.Fprintf(os.Stderr, "\n🚀  Reqflow is LIVE! Watching codebase.\n    Open: http://localhost%s\n\n", addr)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		liveGraph, err := govis.Parse(opts)
+		liveGraph, err := reqflow.Parse(opts)
 		if err != nil {
 			fmt.Fprintf(w, "<html><body><h1>AST Parsing Error: %v</h1></body></html>", err)
 			return

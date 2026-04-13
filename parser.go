@@ -1,4 +1,4 @@
-package govis
+package reqflow
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ type ParseOptions struct {
 	Dir        string
 	Filter     string
 	Focus      string
-	Config     *GovisConfig
+	Config     *ReqflowConfig
 	APIMap     bool
 	Heatmap    bool
 	CallGraph  bool
@@ -70,7 +70,7 @@ func Parse(opts ParseOptions) (*Graph, error) {
 
 	// Pass 1: Harvest structs, interfaces, and functions
 	for _, pkg := range pkgs {
-		// Apply ignore_packages filter from .govis.yml
+		// Apply ignore_packages filter from .reqflow.yml
 		if opts.Config != nil && shouldIgnorePackage(pkg.PkgPath, opts.Config.Parser.IgnorePackages) {
 			continue
 		}

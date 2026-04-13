@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"io"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // DataFlowRenderer generates Mermaid sequence diagrams showing request
 // data flow from handlers through services to stores.
 type DataFlowRenderer struct{}
 
-func (d *DataFlowRenderer) Render(g *govis.Graph, w io.Writer) error {
-	flows := govis.ExtractDataFlows(g)
+func (d *DataFlowRenderer) Render(g *reqflow.Graph, w io.Writer) error {
+	flows := reqflow.ExtractDataFlows(g)
 
 	if len(flows) == 0 {
 		fmt.Fprintln(w, "No data flows detected (no handler→service→store chains found).")
@@ -53,15 +53,15 @@ func (d *DataFlowRenderer) Render(g *govis.Graph, w io.Writer) error {
 			label := "→"
 			if toNode != nil {
 				switch toNode.Kind {
-				case govis.KindService:
+				case reqflow.KindService:
 					label = "process"
-				case govis.KindStore:
+				case reqflow.KindStore:
 					label = "query"
-				case govis.KindModel:
+				case reqflow.KindModel:
 					label = "map"
-				case govis.KindEvent:
+				case reqflow.KindEvent:
 					label = "publish"
-				case govis.KindGRPC:
+				case reqflow.KindGRPC:
 					label = "call"
 				}
 			}

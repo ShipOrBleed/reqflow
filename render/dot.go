@@ -5,12 +5,12 @@ import (
 	"io"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 type DOTRenderer struct{}
 
-func (d *DOTRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (d *DOTRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "digraph G {")
 	fmt.Fprintln(w, "  rankdir=LR")
 	fmt.Fprintln(w, "  node [shape=record]")
@@ -37,13 +37,13 @@ func (d *DOTRenderer) Render(g *govis.Graph, w io.Writer) error {
 		label := ""
 		style := ""
 		switch edge.Kind {
-		case govis.EdgeImplements:
+		case reqflow.EdgeImplements:
 			label = "implements"
 			style = "dashed"
-		case govis.EdgeDepends:
+		case reqflow.EdgeDepends:
 			label = "depends"
 			style = "solid"
-		case govis.EdgeEmbeds:
+		case reqflow.EdgeEmbeds:
 			label = "embeds"
 			style = "solid"
 		}
@@ -55,7 +55,7 @@ func (d *DOTRenderer) Render(g *govis.Graph, w io.Writer) error {
 	return nil
 }
 
-func (d *DOTRenderer) renderNode(w io.Writer, n *govis.Node) {
+func (d *DOTRenderer) renderNode(w io.Writer, n *reqflow.Node) {
 	nodeID := sanitizeID(n.ID)
 	
 	// Create a record-shaped label
@@ -72,15 +72,15 @@ func (d *DOTRenderer) renderNode(w io.Writer, n *govis.Node) {
 	lines := []string{}
 	title := n.Name
 	switch n.Kind {
-	case govis.KindInterface:
+	case reqflow.KindInterface:
 		title = fmt.Sprintf("«interface»\\n%s", n.Name)
-	case govis.KindHandler:
+	case reqflow.KindHandler:
 		title = fmt.Sprintf("«handler»\\n%s", n.Name)
-	case govis.KindService:
+	case reqflow.KindService:
 		title = fmt.Sprintf("«service»\\n%s", n.Name)
-	case govis.KindStore:
+	case reqflow.KindStore:
 		title = fmt.Sprintf("«store»\\n%s", n.Name)
-	case govis.KindModel:
+	case reqflow.KindModel:
 		title = fmt.Sprintf("«model»\\n%s", n.Name)
 	}
 
@@ -103,13 +103,13 @@ func (d *DOTRenderer) renderNode(w io.Writer, n *govis.Node) {
 	// Add color filling for node rendering
 	colorAttr := `fillcolor="white", style="filled"`
 	switch n.Kind {
-	case govis.KindHandler:
+	case reqflow.KindHandler:
 		colorAttr = `fillcolor="#d4edda", style="filled", color="#155724"`
-	case govis.KindService:
+	case reqflow.KindService:
 		colorAttr = `fillcolor="#cce5ff", style="filled", color="#004085"`
-	case govis.KindStore:
+	case reqflow.KindStore:
 		colorAttr = `fillcolor="#ffeeba", style="filled", color="#856404"`
-	case govis.KindModel:
+	case reqflow.KindModel:
 		colorAttr = `fillcolor="#f8d7da", style="filled", color="#721c24"`
 	}
 

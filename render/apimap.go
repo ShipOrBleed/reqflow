@@ -6,14 +6,14 @@ import (
 	"sort"
 	"strings"
 
-	govis "github.com/thzgajendra/govis"
+	reqflow "github.com/thzgajendra/reqflow"
 )
 
 // APIMapRenderer generates a focused table view of all API endpoints
 // with their request/response types.
 type APIMapRenderer struct{}
 
-func (a *APIMapRenderer) Render(g *govis.Graph, w io.Writer) error {
+func (a *APIMapRenderer) Render(g *reqflow.Graph, w io.Writer) error {
 	type endpoint struct {
 		Method   string
 		Path     string
@@ -27,7 +27,7 @@ func (a *APIMapRenderer) Render(g *govis.Graph, w io.Writer) error {
 	var endpoints []endpoint
 
 	for _, node := range g.Nodes {
-		if node.Kind != govis.KindRoute && node.Meta["route"] == "" {
+		if node.Kind != reqflow.KindRoute && node.Meta["route"] == "" {
 			continue
 		}
 
