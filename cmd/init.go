@@ -30,12 +30,13 @@ parser:
     - "testdata"
     - "generated"
 
-  # Custom naming conventions for layer detection.
-  # Use Go-compatible regex. Govis uses these instead of default suffix matching.
-  domain_naming:
-    # service_match: ".*(Service|UseCase|Manager|Interactor)$"
-    # store_match: ".*(Repository|Store|Adapter|Gateway|DAO)$"
-    # model_match: ".*(Model|Entity|DTO|Record)$"
+  # Govis automatically detects layers based on struct suffixes AND package names
+  # (e.g., standard "Service", "Repository" logic OR "biz/", "adapter/" directories).
+  # You can bypass the auto-detection completely by specifying strict regex rules below:
+  # domain_naming:
+  #   service_match: ".*(Service|UseCase|Manager|Interactor|Biz)$"
+  #   store_match: ".*(Repository|Store|Adapter|Gateway|DAO|Data)$"
+  #   model_match: ".*(Model|Entity|DTO|Record|Domain)$"
 
 # CI/CD thresholds — govis exits 1 if any threshold is exceeded.
 # Use with: govis -audit ./...

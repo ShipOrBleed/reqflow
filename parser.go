@@ -115,9 +115,10 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 	case *ast.StructType:
 		node.Kind = KindStruct
 
-		isService := strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase")
-		isStore := strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao")
-		isModel := strings.HasSuffix(lowerName, "model")
+		isService := matchLayer(t.Name.Name, pkg.PkgPath, serviceKeywords)
+		isStore := matchLayer(t.Name.Name, pkg.PkgPath, storeKeywords)
+		isModel := matchLayer(t.Name.Name, pkg.PkgPath, modelKeywords)
+		isHandler := matchLayer(t.Name.Name, pkg.PkgPath, handlerKeywords)
 
 		if opts.Config != nil {
 			if opts.Config.ServiceRegex != nil {
@@ -137,6 +138,8 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 			node.Kind = KindService
 		} else if isModel {
 			node.Kind = KindModel
+		} else if isHandler {
+			node.Kind = KindHandler
 		}
 
 		hasDBTags := false
@@ -172,10 +175,14 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 
 	case *ast.InterfaceType:
 		node.Kind = KindInterface
-		if strings.HasSuffix(lowerName, "repository") || strings.HasSuffix(lowerName, "store") || strings.HasSuffix(lowerName, "dao") {
+		if matchLayer(t.Name.Name, pkg.PkgPath, storeKeywords) {
 			node.Kind = KindStore
-		} else if strings.HasSuffix(lowerName, "service") || strings.HasSuffix(lowerName, "usecase") {
+		} else if matchLayer(t.Name.Name, pkg.PkgPath, serviceKeywords) {
 			node.Kind = KindService
+		} else if matchLayer(t.Name.Name, pkg.PkgPath, handlerKeywords) {
+			node.Kind = KindHandler
+		} else if matchLayer(t.Name.Name, pkg.PkgPath, modelKeywords) {
+			node.Kind = KindModel
 		}
 
 		for _, method := range structOrIface.Methods.List {
@@ -326,4 +333,31 @@ func resolveDependencies(graph *Graph) {
 			}
 		}
 	}
+}
+
+var (
+	serviceKeywords = []string{"service", "usecase", "interactor", "manager", "orchestrator", "worker", "processor", "biz"}
+	storeKeywords   = []string{"repository", "repo", "store", "dao", "data", "gateway", "adapter", "persistence", "storage", "client"}
+	modelKeywords   = []string{"model", "entity", "dto", "record", "schema", "domain", "aggregate"}
+	handlerKeywords = []string{"handler", "controller", "endpoint", "transport", "api", "resource"}
+)
+
+// matchLayer checks if a node belongs to an architectural layer based on its name or package
+func matchLayer(name string, pkgPath string, keywords []string) bool {
+	lowerName := strings.ToLower(name)
+	for _, kw := range keywords {
+		if strings.HasSuffix(lowerName, kw) {
+			return true
+		}
+	}
+	parts := strings.Split(pkgPath, "/")
+	if len(parts) > 0 {
+		pkgName := strings.ToLower(parts[len(parts)-1])
+		for _, kw := range keywords {
+			if pkgName == kw || pkgName == kw+"s" {
+				return true
+			}
+		}
+	}
+	return false
 }
