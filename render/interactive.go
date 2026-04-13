@@ -215,7 +215,9 @@ var interactiveTemplate = `<!DOCTYPE html>
                 <button onclick="cy.zoom(cy.zoom()*1.3);cy.center()">Zoom +</button>
                 <button onclick="cy.zoom(cy.zoom()*0.7);cy.center()">Zoom -</button>
                 <button onclick="runLayout()">Re-layout</button>
+                <button id="toggle-isolates" onclick="toggleIsolates()">Show Isolated</button>
             </div>
+            <div id="loading" style="position:absolute;top:50%%;left:50%%;transform:translate(-50%%,-50%%);color:var(--accent);font-size:1.2rem;">Loading graph...</div>
         </div>
     </div>
 
@@ -252,42 +254,67 @@ var interactiveTemplate = `<!DOCTYPE html>
 
     const elements = [];
     const nodeCount = graphData.nodes.length;
-    const isLarge = nodeCount > 200;
 
-    // For small graphs, use compound parent nodes for package clustering
-    if (!isLarge) {
-        const clusters = new Set(graphData.nodes.map(n => n.pkg));
-        clusters.forEach(pkg => {
-            elements.push({ data: { id: 'cluster_' + pkg, label: pkg.split('/').pop() }, classes: 'cluster' });
-        });
-    }
+    // Architectural kinds that are always shown
+    const archKinds = new Set(['handler','service','store','model','event','middleware','grpc','infra','route','envvar','table','container','proto_rpc','proto_msg']);
 
-    // Build a set of valid node IDs for edge filtering
+    // Build edge lookup to identify connected nodes
     const nodeIDs = new Set(graphData.nodes.map(n => n.id));
-
-    graphData.nodes.forEach(n => {
-        const data = {
-            id: n.id, label: n.label, kind: n.kind, pkg: n.pkg,
-            file: n.file, line: n.line,
-            meta: n.meta || {}, methods: n.methods || [], fields: n.fields || []
-        };
-        if (!isLarge) data.parent = 'cluster_' + n.pkg;
-        elements.push({ data: data });
-    });
-
-    // Only add edges where both source and target exist
+    const connectedNodes = new Set();
+    const validEdges = [];
     graphData.edges.forEach(e => {
         if (nodeIDs.has(e.source) && nodeIDs.has(e.target)) {
-            elements.push({
-                data: { source: e.source, target: e.target, kind: e.kind, label: e.kind }
-            });
+            connectedNodes.add(e.source);
+            connectedNodes.add(e.target);
+            validEdges.push(e);
         }
     });
 
-    // Choose layout based on graph size
-    const layoutConfig = isLarge
-        ? { name: 'fcose', animate: false, quality: 'default', nodeRepulsion: 4500, idealEdgeLength: 80, edgeElasticity: 0.45, gravity: 0.4, gravityRange: 3.8, numIter: 2500, tile: true, tilingPaddingVertical: 10, tilingPaddingHorizontal: 10, nodeSeparation: 75 }
-        : { name: 'fcose', animate: false, quality: 'proof', nodeRepulsion: 8000, idealEdgeLength: 120, edgeElasticity: 0.45, gravity: 0.25, numIter: 5000 };
+    // Add compound parent nodes for packages (only for packages that have visible nodes)
+    const visiblePkgs = new Set();
+    graphData.nodes.forEach(n => {
+        if (archKinds.has(n.kind) || connectedNodes.has(n.id)) {
+            visiblePkgs.add(n.pkg);
+        }
+    });
+    visiblePkgs.forEach(pkg => {
+        const label = pkg.split('/').pop();
+        elements.push({ data: { id: 'cluster_' + pkg, label: label }, classes: 'cluster' });
+    });
+
+    // Add nodes — mark isolated non-arch nodes as hidden initially
+    graphData.nodes.forEach(n => {
+        const isArch = archKinds.has(n.kind);
+        const isConnected = connectedNodes.has(n.id);
+        const isVisible = isArch || isConnected;
+
+        elements.push({
+            data: {
+                id: n.id, label: n.label, kind: n.kind, pkg: n.pkg,
+                file: n.file, line: n.line, parent: 'cluster_' + n.pkg,
+                meta: n.meta || {}, methods: n.methods || [], fields: n.fields || []
+            },
+            classes: isVisible ? '' : 'isolated'
+        });
+    });
+
+    // Add edges
+    validEdges.forEach(e => {
+        elements.push({
+            data: { source: e.source, target: e.target, kind: e.kind, label: e.kind }
+        });
+    });
+
+    // Count visible vs total
+    const visibleCount = graphData.nodes.filter(n => archKinds.has(n.kind) || connectedNodes.has(n.id)).length;
+    document.getElementById('toggle-isolates').textContent = 'Show All (' + nodeCount + ')';
+
+    const layoutConfig = {
+        name: 'fcose', animate: false, quality: 'proof',
+        nodeRepulsion: 6000, idealEdgeLength: 100, edgeElasticity: 0.45,
+        gravity: 0.3, gravityRange: 2.0, numIter: 5000, tile: true,
+        tilingPaddingVertical: 20, tilingPaddingHorizontal: 20, nodeSeparation: 50
+    };
 
     const cy = cytoscape({
         container: document.getElementById('cy'),
@@ -302,9 +329,9 @@ var interactiveTemplate = `<!DOCTYPE html>
                     'color': '#f8fafc',
                     'text-outline-color': '#0f172a',
                     'text-outline-width': 2,
-                    'font-size': isLarge ? '8px' : '11px',
-                    'width': isLarge ? 25 : 40,
-                    'height': isLarge ? 25 : 40,
+                    'font-size': '10px',
+                    'width': 30,
+                    'height': 30,
                     'text-valign': 'bottom',
                     'text-margin-y': 6,
                     'border-width': 2,
@@ -370,6 +397,10 @@ var interactiveTemplate = `<!DOCTYPE html>
             {
                 selector: '.hidden',
                 style: { 'display': 'none' }
+            },
+            {
+                selector: '.isolated',
+                style: { 'display': 'none' }
             }
         ],
         layout: layoutConfig,
@@ -378,8 +409,24 @@ var interactiveTemplate = `<!DOCTYPE html>
         maxZoom: 5
     });
 
+    // Remove loading indicator
+    document.getElementById('loading').style.display = 'none';
+
     function runLayout() {
         cy.layout(Object.assign({}, layoutConfig, { animate: true, animationDuration: 800 })).run();
+    }
+
+    let showingIsolates = false;
+    function toggleIsolates() {
+        showingIsolates = !showingIsolates;
+        if (showingIsolates) {
+            cy.nodes('.isolated').removeClass('isolated').addClass('was-isolated');
+            document.getElementById('toggle-isolates').textContent = 'Hide Isolated (' + visibleCount + ')';
+        } else {
+            cy.nodes('.was-isolated').removeClass('was-isolated').addClass('isolated');
+            document.getElementById('toggle-isolates').textContent = 'Show All (' + nodeCount + ')';
+        }
+        runLayout();
     }
 
     // Click to show detail panel
