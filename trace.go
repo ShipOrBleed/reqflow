@@ -164,11 +164,23 @@ func buildChain(startID string, g *Graph) (chain []*Node, tables []string, envVa
 			nodes = append(nodes, node)
 		}
 
-		// Follow outgoing edges
+		// Follow outgoing edges (depends, calls, flows, mapsTo)
 		for _, edge := range g.Edges {
 			if edge.From == id && !visited[edge.To] {
 				visited[edge.To] = true
 				queue = append(queue, edge.To)
+			}
+		}
+
+		// If this is an interface, also follow to its concrete implementations.
+		// Pattern: Handler depends on Service (interface) → service struct implements Service.
+		// Without this, the trace stops at the interface and never reaches the store layer.
+		if node.Kind == KindInterface || node.Kind == KindService {
+			for _, edge := range g.Edges {
+				if edge.To == id && edge.Kind == EdgeImplements && !visited[edge.From] {
+					visited[edge.From] = true
+					queue = append(queue, edge.From)
+				}
 			}
 		}
 	}

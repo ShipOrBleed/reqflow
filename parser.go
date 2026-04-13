@@ -310,7 +310,11 @@ func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 			id := fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
 			if node, ok := graph.Nodes[id]; ok {
 				node.Methods = append(node.Methods, fn.Name.Name)
-				if isHTTPHandler(fn, pkg.TypesInfo) {
+				// Only promote to KindHandler if the struct hasn't already been
+				// classified as a service or store. In GoFr (and similar frameworks),
+				// service methods also accept *gofr.Context — we must not let that
+				// override a correctly detected service/store classification.
+				if node.Kind == KindStruct && isHTTPHandler(fn, pkg.TypesInfo) {
 					node.Kind = KindHandler
 					node.Meta["http_method"] = fn.Name.Name
 				}
