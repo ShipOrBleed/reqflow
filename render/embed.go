@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // EmbedRenderer generates a self-contained HTML snippet that can be pasted
@@ -13,14 +13,14 @@ import (
 // It inlines Mermaid JS so there are no external CDN dependencies.
 type EmbedRenderer struct{}
 
-func (e *EmbedRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (e *EmbedRenderer) Render(g *govis.Graph, w io.Writer) error {
 	var mermaidBuf bytes.Buffer
 	m := &MermaidRenderer{}
 	if err := m.Render(g, &mermaidBuf); err != nil {
 		return fmt.Errorf("generating mermaid: %w", err)
 	}
 
-	summaryHTML := structmap.GetSummaryHTML(g)
+	summaryHTML := govis.GetSummaryHTML(g)
 
 	fmt.Fprintf(w, embedTemplate, summaryHTML, mermaidBuf.String())
 	return nil

@@ -8,7 +8,7 @@ import (
 	"io"
 	"sort"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // ExcalidrawRenderer generates an Excalidraw JSON file (.excalidraw)
@@ -79,14 +79,14 @@ var excalidrawColors = map[string]string{
 	"proto_msg":  "#fcc2d7",
 }
 
-func (e *ExcalidrawRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (e *ExcalidrawRenderer) Render(g *govis.Graph, w io.Writer) error {
 	var elements []excalidrawElement
 	nodePositions := make(map[string][2]float64) // node ID → [x, y]
 
 	// Sort nodes by package for grid layout
 	type nodeEntry struct {
 		id   string
-		node *structmap.Node
+		node *govis.Node
 	}
 	var sorted []nodeEntry
 	for id, node := range g.Nodes {

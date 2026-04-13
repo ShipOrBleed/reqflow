@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // ThreeRenderer generates a self-contained HTML page with Three.js and
@@ -31,7 +31,7 @@ type threeGraph struct {
 	Links []threeEdge `json:"links"`
 }
 
-func (t *ThreeRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (t *ThreeRenderer) Render(g *govis.Graph, w io.Writer) error {
 	tg := threeGraph{}
 
 	// Count connections per node for sizing

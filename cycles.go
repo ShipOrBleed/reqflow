@@ -1,4 +1,4 @@
-package structmap
+package govis
 
 // ============================================================
 // CIRCULAR DEPENDENCY DETECTION (DFS Cycle Finder)

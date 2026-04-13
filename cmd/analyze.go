@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 	"golang.org/x/tools/go/packages"
 )
 
 // runAnalysis executes all enabled analysis checks and prints results to stderr
-func runAnalysis(graph *structmap.Graph, opts structmap.ParseOptions, flags analysisFlags) {
+func runAnalysis(graph *govis.Graph, opts govis.ParseOptions, flags analysisFlags) {
 	if flags.Deadcode {
 		runDeadcodeCheck(graph)
 	}
@@ -57,7 +57,7 @@ type analysisFlags struct {
 	AI           bool
 }
 
-func runDeadcodeCheck(graph *structmap.Graph) {
+func runDeadcodeCheck(graph *govis.Graph) {
 	hasIncoming := make(map[string]bool)
 	for _, e := range graph.Edges {
 		hasIncoming[e.To] = true
@@ -66,7 +66,7 @@ func runDeadcodeCheck(graph *structmap.Graph) {
 	fmt.Fprintf(os.Stderr, "\n💀 DEAD CODE / ORPHAN DETECTION:\n")
 	orphansFound := 0
 	for id, n := range graph.Nodes {
-		if n.Kind != structmap.KindHandler && n.Kind != structmap.KindFunc && n.Kind != structmap.KindEvent {
+		if n.Kind != govis.KindHandler && n.Kind != govis.KindFunc && n.Kind != govis.KindEvent {
 			if !hasIncoming[id] {
 				fmt.Fprintf(os.Stderr, "  - Orphaned %s: %s (Location: %s:%d)\n", n.Kind, n.Name, n.File, n.Line)
 				orphansFound++
@@ -80,8 +80,8 @@ func runDeadcodeCheck(graph *structmap.Graph) {
 	}
 }
 
-func runCycleCheck(graph *structmap.Graph) {
-	detectedCycles := structmap.DetectCycles(graph)
+func runCycleCheck(graph *govis.Graph) {
+	detectedCycles := govis.DetectCycles(graph)
 	fmt.Fprintf(os.Stderr, "\n🔄 CIRCULAR DEPENDENCY SCAN:\n")
 	if len(detectedCycles) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No circular dependencies found!\n")
@@ -101,8 +101,8 @@ func runCycleCheck(graph *structmap.Graph) {
 	}
 }
 
-func runMetricsCheck(graph *structmap.Graph) {
-	allMetrics := structmap.ComputeMetrics(graph)
+func runMetricsCheck(graph *govis.Graph) {
+	allMetrics := govis.ComputeMetrics(graph)
 	fmt.Fprintf(os.Stderr, "\n📊 COUPLING METRICS:\n")
 	fmt.Fprintf(os.Stderr, "  %-30s %-12s %-8s %-8s %-8s\n", "COMPONENT", "KIND", "FAN-IN", "FAN-OUT", "RISK")
 	fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat("-", 75))
@@ -118,12 +118,12 @@ func runMetricsCheck(graph *structmap.Graph) {
 	}
 }
 
-func runErrCheck(opts structmap.ParseOptions) {
+func runErrCheck(opts govis.ParseOptions) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	errors := structmap.DetectSwallowedErrors(pkgs)
+	errors := govis.DetectSwallowedErrors(pkgs)
 	fmt.Fprintf(os.Stderr, "\n⚠️  SWALLOWED ERROR DETECTION:\n")
 	if len(errors) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No swallowed errors found!\n")
@@ -135,12 +135,12 @@ func runErrCheck(opts structmap.ParseOptions) {
 	}
 }
 
-func runSecurityCheck(opts structmap.ParseOptions) {
+func runSecurityCheck(opts govis.ParseOptions) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	issues := structmap.DetectSecurityIssues(pkgs)
+	issues := govis.DetectSecurityIssues(pkgs)
 	fmt.Fprintf(os.Stderr, "\n🔒 SECURITY ANTI-PATTERN SCAN:\n")
 	if len(issues) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No security issues found!\n")
@@ -158,12 +158,12 @@ func runSecurityCheck(opts structmap.ParseOptions) {
 	}
 }
 
-func runTechDebtCheck(opts structmap.ParseOptions, graph *structmap.Graph) {
+func runTechDebtCheck(opts govis.ParseOptions, graph *govis.Graph) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	debts := structmap.DetectTechDebt(pkgs, graph)
+	debts := govis.DetectTechDebt(pkgs, graph)
 	fmt.Fprintf(os.Stderr, "\n📌 TECHNICAL DEBT SCAN:\n")
 	if len(debts) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ No TODO/FIXME/HACK comments found!\n")
@@ -175,8 +175,8 @@ func runTechDebtCheck(opts structmap.ParseOptions, graph *structmap.Graph) {
 	}
 }
 
-func runCoverageCheck(coverFile string, graph *structmap.Graph) {
-	err := structmap.LoadCoverageProfile(coverFile, graph)
+func runCoverageCheck(coverFile string, graph *govis.Graph) {
+	err := govis.LoadCoverageProfile(coverFile, graph)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️  Could not load coverage profile: %v\n", err)
 		return
@@ -195,12 +195,12 @@ func runCoverageCheck(coverFile string, graph *structmap.Graph) {
 	}
 }
 
-func runConstructorCheck(opts structmap.ParseOptions, graph *structmap.Graph) {
+func runConstructorCheck(opts govis.ParseOptions, graph *govis.Graph) {
 	pkgs := loadPackages(opts)
 	if pkgs == nil {
 		return
 	}
-	missing := structmap.DetectMissingConstructors(pkgs, graph)
+	missing := govis.DetectMissingConstructors(pkgs, graph)
 	fmt.Fprintf(os.Stderr, "\n🔨 CONSTRUCTOR VALIDATION:\n")
 	if len(missing) == 0 {
 		fmt.Fprintf(os.Stderr, "  ✅ All structs have New*() constructors!\n")
@@ -212,12 +212,12 @@ func runConstructorCheck(opts structmap.ParseOptions, graph *structmap.Graph) {
 	}
 }
 
-func runDiffCheck(diffFile string, graph *structmap.Graph) {
+func runDiffCheck(diffFile string, graph *govis.Graph) {
 	bytes, err := os.ReadFile(diffFile)
 	if err != nil {
 		return
 	}
-	var oldGraph structmap.Graph
+	var oldGraph govis.Graph
 	if err := json.Unmarshal(bytes, &oldGraph); err != nil {
 		return
 	}
@@ -238,7 +238,7 @@ func runDiffCheck(diffFile string, graph *structmap.Graph) {
 	fmt.Fprintf(os.Stderr, "✅ Injected architecture diff comparisons against %s.\n", diffFile)
 }
 
-func runAIReview(graph *structmap.Graph) {
+func runAIReview(graph *govis.Graph) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		fmt.Fprintln(os.Stderr, "❌ Please set OPENAI_API_KEY environment variable to use -ai.")
@@ -262,7 +262,7 @@ func import_http_post(apiKey, body string) {
 }
 
 // loadPackages is a helper to load Go packages for analysis
-func loadPackages(opts structmap.ParseOptions) []*packages.Package {
+func loadPackages(opts govis.ParseOptions) []*packages.Package {
 	pkgCfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Dir:  opts.Dir,
@@ -276,11 +276,11 @@ func loadPackages(opts structmap.ParseOptions) []*packages.Package {
 
 // enforceThresholds checks if graph metrics exceed configured limits.
 // Exits 1 if any threshold is breached — designed for CI/CD pipelines.
-func enforceThresholds(graph *structmap.Graph, cfg *structmap.GovisConfig) {
+func enforceThresholds(graph *govis.Graph, cfg *govis.GovisConfig) {
 	failures := 0
 
 	if cfg.Thresholds.MaxCycles != nil {
-		cycles := structmap.DetectCycles(graph)
+		cycles := govis.DetectCycles(graph)
 		if len(cycles) > *cfg.Thresholds.MaxCycles {
 			fmt.Fprintf(os.Stderr, "\n🚫 THRESHOLD BREACH: %d circular dependencies (max: %d)\n", len(cycles), *cfg.Thresholds.MaxCycles)
 			failures++
@@ -294,7 +294,7 @@ func enforceThresholds(graph *structmap.Graph, cfg *structmap.GovisConfig) {
 		}
 		orphans := 0
 		for id, n := range graph.Nodes {
-			if n.Kind != structmap.KindHandler && n.Kind != structmap.KindFunc && n.Kind != structmap.KindEvent {
+			if n.Kind != govis.KindHandler && n.Kind != govis.KindFunc && n.Kind != govis.KindEvent {
 				if !hasIncoming[id] {
 					orphans++
 				}

@@ -1,4 +1,18 @@
-package structmap
+// Package govis provides architecture visualization and static analysis for Go
+// codebases. It parses Go ASTs to build dependency graphs, detect architectural
+// patterns (handlers, services, stores, models), and render interactive
+// visualizations in multiple formats.
+//
+// Install the CLI:
+//
+//	go install github.com/zopdev/govis/cmd/govis@latest
+//
+// Use as a library:
+//
+//	graph, err := govis.Parse(govis.ParseOptions{Dir: "."})
+//	renderer := &render.InteractiveRenderer{}
+//	renderer.Render(graph, os.Stdout)
+package govis
 
 type NodeKind string
 

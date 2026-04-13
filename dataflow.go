@@ -1,4 +1,4 @@
-package structmap
+package govis
 
 // DataFlow represents a single request lifecycle path through the architecture.
 type DataFlow struct {

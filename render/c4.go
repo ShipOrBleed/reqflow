@@ -5,13 +5,13 @@ import (
 	"io"
 	"strings"
 
-	"github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // C4Renderer generates C4 Model PlantUML notation.
 type C4Renderer struct{}
 
-func (c *C4Renderer) Render(g *structmap.Graph, w io.Writer) error {
+func (c *C4Renderer) Render(g *govis.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "@startuml")
 	fmt.Fprintln(w, "!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml")
 	fmt.Fprintln(w, "")
@@ -33,18 +33,18 @@ func (c *C4Renderer) Render(g *structmap.Graph, w io.Writer) error {
 		fmt.Fprintf(w, "  Container_Boundary(%s_pkg, \"Package: %s\") {\n", safePUMLID(pkgName), pkg)
 		for _, id := range nodeIDs {
 			node := g.Nodes[id]
-			if node.Kind == structmap.KindInfra {
+			if node.Kind == govis.KindInfra {
 				infraNodes = append(infraNodes, id)
 				continue // Draw infra outside boundary
 			}
 			
 			tech := "Go Struct"
-			if node.Kind == structmap.KindInterface {
+			if node.Kind == govis.KindInterface {
 				tech = "Go Interface"
 			}
 			
 			format := "Component"
-			if node.Kind == structmap.KindStore {
+			if node.Kind == govis.KindStore {
 				format = "ComponentDb"
 			}
 			
@@ -75,9 +75,9 @@ func (c *C4Renderer) Render(g *structmap.Graph, w io.Writer) error {
 	// Edges
 	for _, edge := range g.Edges {
 		relTxt := "Uses"
-		if edge.Kind == structmap.EdgeImplements {
+		if edge.Kind == govis.EdgeImplements {
 			relTxt = "Implements"
-		} else if edge.Kind == structmap.EdgeEmbeds {
+		} else if edge.Kind == govis.EdgeEmbeds {
 			relTxt = "Embeds"
 		}
 		fmt.Fprintf(w, "Rel(%s, %s, \"%s\")\n", safePUMLID(edge.From), safePUMLID(edge.To), relTxt)

@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"io"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // DataFlowRenderer generates Mermaid sequence diagrams showing request
 // data flow from handlers through services to stores.
 type DataFlowRenderer struct{}
 
-func (d *DataFlowRenderer) Render(g *structmap.Graph, w io.Writer) error {
-	flows := structmap.ExtractDataFlows(g)
+func (d *DataFlowRenderer) Render(g *govis.Graph, w io.Writer) error {
+	flows := govis.ExtractDataFlows(g)
 
 	if len(flows) == 0 {
 		fmt.Fprintln(w, "No data flows detected (no handler→service→store chains found).")
@@ -53,15 +53,15 @@ func (d *DataFlowRenderer) Render(g *structmap.Graph, w io.Writer) error {
 			label := "→"
 			if toNode != nil {
 				switch toNode.Kind {
-				case structmap.KindService:
+				case govis.KindService:
 					label = "process"
-				case structmap.KindStore:
+				case govis.KindStore:
 					label = "query"
-				case structmap.KindModel:
+				case govis.KindModel:
 					label = "map"
-				case structmap.KindEvent:
+				case govis.KindEvent:
 					label = "publish"
-				case structmap.KindGRPC:
+				case govis.KindGRPC:
 					label = "call"
 				}
 			}

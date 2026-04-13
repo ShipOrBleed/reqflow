@@ -1,5 +1,5 @@
-name: 'Go StructMap Generator'
-description: 'Generates Mermaid diagram of your Go codebase and posts it on PRs'
+name: 'Govis — Go Architecture Visualizer'
+description: 'Generates architecture diagrams, dependency graphs, and analysis reports for Go codebases'
 author: 'zopdev'
 branding:
   icon: 'map'

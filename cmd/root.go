@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 	"github.com/zopdev/govis/render"
 )
 
@@ -17,7 +17,7 @@ func Execute() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version":
-			fmt.Printf("govis %s\n", structmap.Version)
+			fmt.Printf("govis %s\n", govis.Version)
 			return
 		case "init":
 			generateInitConfig()
@@ -74,13 +74,13 @@ func Execute() {
 	}
 
 	// ---- Configuration Loading ----
-	var loadedConfig *structmap.GovisConfig
-	if cfg, err := structmap.LoadConfig(".govis.yml"); err == nil {
+	var loadedConfig *govis.GovisConfig
+	if cfg, err := govis.LoadConfig(".govis.yml"); err == nil {
 		loadedConfig = cfg
 		fmt.Fprintf(os.Stderr, "⚙️  Loaded configuration from .govis.yml\n")
 	}
 
-	opts := structmap.ParseOptions{
+	opts := govis.ParseOptions{
 		Dir:    dir,
 		Filter: *filter,
 		Focus:  *focus,
@@ -120,14 +120,14 @@ func Execute() {
 	}
 
 	// ---- Parse ----
-	graph, err := structmap.Parse(opts)
+	graph, err := govis.Parse(opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing packages: %v\n", err)
 		os.Exit(1)
 	}
 
 	// ---- Always Print Summary ----
-	structmap.PrintSummary(graph, os.Stderr)
+	govis.PrintSummary(graph, os.Stderr)
 
 	// ---- Architecture Linting ----
 	var activeVetRules []string
@@ -169,7 +169,7 @@ func Execute() {
 	// ---- Evolution Timeline ----
 	if *evolution != "" {
 		refs := strings.Split(*evolution, ",")
-		snapshots := structmap.ExtractEvolution(dir, refs, opts)
+		snapshots := govis.ExtractEvolution(dir, refs, opts)
 		tr := &render.TimelineRenderer{Snapshots: snapshots}
 		w := os.Stdout
 		if *out != "" {
@@ -243,7 +243,7 @@ func Execute() {
 
 func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 	files := strings.Split(filesStr, ",")
-	var graphs []*structmap.Graph
+	var graphs []*govis.Graph
 
 	for _, f := range files {
 		data, err := os.ReadFile(strings.TrimSpace(f))
@@ -251,7 +251,7 @@ func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 			fmt.Fprintf(os.Stderr, "Error reading stitch file %s: %v\n", f, err)
 			os.Exit(1)
 		}
-		var g structmap.Graph
+		var g govis.Graph
 		if err := json.Unmarshal(data, &g); err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing JSON from %s: %v\n", f, err)
 			os.Exit(1)
@@ -259,15 +259,15 @@ func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 		graphs = append(graphs, &g)
 	}
 
-	var merged *structmap.Graph
+	var merged *govis.Graph
 	if withServiceMap {
-		merged = structmap.StitchWithServiceMap(graphs)
+		merged = govis.StitchWithServiceMap(graphs)
 	} else {
-		merged = structmap.Stitch(graphs)
+		merged = govis.Stitch(graphs)
 	}
 	
 	// Print summary of merged graph
-	structmap.PrintSummary(merged, os.Stderr)
+	govis.PrintSummary(merged, os.Stderr)
 
 	var r render.Renderer
 	switch format {
@@ -293,7 +293,7 @@ func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 }
 
 // runVetRules checks architecture rules and exits 1 on violations
-func runVetRules(rules []string, graph *structmap.Graph) {
+func runVetRules(rules []string, graph *govis.Graph) {
 	violations := 0
 	for _, rule := range rules {
 		parts := strings.Split(rule, "!")
@@ -320,8 +320,8 @@ func runVetRules(rules []string, graph *structmap.Graph) {
 			continue
 		}
 
-		fromKind := structmap.NodeKind(parts[0])
-		toKind := structmap.NodeKind(parts[1])
+		fromKind := govis.NodeKind(parts[0])
+		toKind := govis.NodeKind(parts[1])
 
 		for _, edge := range graph.Edges {
 			fromNode := graph.Nodes[edge.From]

@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // InteractiveRenderer generates a self-contained HTML page with Cytoscape.js
@@ -38,7 +38,7 @@ type cyGraph struct {
 	Clusters []string `json:"clusters"`
 }
 
-func (ir *InteractiveRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
 	cg := cyGraph{}
 
 	// Add compound parent nodes for each cluster/package
@@ -80,7 +80,7 @@ func (ir *InteractiveRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		return fmt.Errorf("marshalling graph: %w", err)
 	}
 
-	summaryHTML := structmap.GetSummaryHTML(g)
+	summaryHTML := govis.GetSummaryHTML(g)
 
 	// Count by kind for filter checkboxes
 	kindCounts := make(map[string]int)

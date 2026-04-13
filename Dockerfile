@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine
+FROM golang:1.25-alpine
 
 RUN apk add --no-cache git bash jq
 RUN go install github.com/zopdev/govis/cmd/govis@latest

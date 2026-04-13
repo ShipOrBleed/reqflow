@@ -5,16 +5,16 @@ import (
 	"net/http"
 	"os"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 	"github.com/zopdev/govis/render"
 )
 
 // startServer launches the live HTTP visualization daemon
-func startServer(addr string, opts structmap.ParseOptions) {
+func startServer(addr string, opts govis.ParseOptions) {
 	fmt.Fprintf(os.Stderr, "\n🚀  Govis is LIVE! Watching codebase.\n    Open: http://localhost%s\n\n", addr)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		liveGraph, err := structmap.Parse(opts)
+		liveGraph, err := govis.Parse(opts)
 		if err != nil {
 			fmt.Fprintf(w, "<html><body><h1>AST Parsing Error: %v</h1></body></html>", err)
 			return

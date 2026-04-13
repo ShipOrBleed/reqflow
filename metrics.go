@@ -1,4 +1,4 @@
-package structmap
+package govis
 
 import "sort"
 

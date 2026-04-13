@@ -6,13 +6,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // DSMRenderer generates a Dependency Structure Matrix (DSM) in text format.
 type DSMRenderer struct{}
 
-func (d *DSMRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (d *DSMRenderer) Render(g *govis.Graph, w io.Writer) error {
 	nodes := make([]string, 0, len(g.Nodes))
 	for id := range g.Nodes {
 		nodes = append(nodes, id)
@@ -64,7 +64,7 @@ func (d *DSMRenderer) Render(g *structmap.Graph, w io.Writer) error {
 				// Find edge type
 				for _, e := range g.Edges {
 					if e.From == rowID && e.To == colID {
-						if e.Kind == structmap.EdgeImplements {
+						if e.Kind == govis.EdgeImplements {
 							fmt.Print("  I")
 						} else {
 							fmt.Print("  X")

@@ -5,17 +5,17 @@ import (
 	"io"
 	"strings"
 
-	"github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // Renderer defines standard graph output capability
 type Renderer interface {
-	Render(g *structmap.Graph, w io.Writer) error
+	Render(g *govis.Graph, w io.Writer) error
 }
 
 type MermaidRenderer struct{}
 
-func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (m *MermaidRenderer) Render(g *govis.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "classDiagram")
 
 	// Render nodes inside clusters (packages)
@@ -38,27 +38,27 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		toID := sanitizeID(edge.To)
 		
 		switch edge.Kind {
-		case structmap.EdgeImplements:
+		case govis.EdgeImplements:
 			fmt.Fprintf(w, "  %s ..|> %s : implements\n", fromID, toID)
-		case structmap.EdgeDepends:
+		case govis.EdgeDepends:
 			fmt.Fprintf(w, "  %s --> %s : depends\n", fromID, toID)
-		case structmap.EdgeEmbeds:
+		case govis.EdgeEmbeds:
 			fmt.Fprintf(w, "  %s --|> %s : embeds\n", fromID, toID)
-		case structmap.EdgeCalls:
+		case govis.EdgeCalls:
 			fmt.Fprintf(w, "  %s -..-> %s : calls\n", fromID, toID)
-		case structmap.EdgeFlows:
+		case govis.EdgeFlows:
 			fmt.Fprintf(w, "  %s ===> %s : flows\n", fromID, toID)
-		case structmap.EdgeReads:
+		case govis.EdgeReads:
 			fmt.Fprintf(w, "  %s -.-> %s : reads\n", fromID, toID)
-		case structmap.EdgeMapsTo:
+		case govis.EdgeMapsTo:
 			fmt.Fprintf(w, "  %s --o %s : maps_to\n", fromID, toID)
-		case structmap.EdgePublishes:
+		case govis.EdgePublishes:
 			fmt.Fprintf(w, "  %s -..-> %s : publishes\n", fromID, toID)
-		case structmap.EdgeSubscribes:
+		case govis.EdgeSubscribes:
 			fmt.Fprintf(w, "  %s <-..- %s : subscribes\n", fromID, toID)
-		case structmap.EdgeRPC:
+		case govis.EdgeRPC:
 			fmt.Fprintf(w, "  %s <==> %s : rpc\n", fromID, toID)
-		case structmap.EdgeTransitive:
+		case govis.EdgeTransitive:
 			fmt.Fprintf(w, "  %s -.-> %s : transitive\n", fromID, toID)
 		default:
 			fmt.Fprintf(w, "  %s --> %s\n", fromID, toID)
@@ -96,21 +96,21 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		}
 
 		switch node.Kind {
-		case structmap.KindHandler:
+		case govis.KindHandler:
 			fmt.Fprintf(w, "  class %s handler\n", sanitizeID(node.ID))
-		case structmap.KindService:
+		case govis.KindService:
 			fmt.Fprintf(w, "  class %s service\n", sanitizeID(node.ID))
-		case structmap.KindStore:
+		case govis.KindStore:
 			fmt.Fprintf(w, "  class %s store\n", sanitizeID(node.ID))
-		case structmap.KindModel:
+		case govis.KindModel:
 			fmt.Fprintf(w, "  class %s model\n", sanitizeID(node.ID))
-		case structmap.KindEvent:
+		case govis.KindEvent:
 			fmt.Fprintf(w, "  class %s event\n", sanitizeID(node.ID))
-		case structmap.KindMiddleware:
+		case govis.KindMiddleware:
 			fmt.Fprintf(w, "  class %s middleware\n", sanitizeID(node.ID))
-		case structmap.KindGRPC:
+		case govis.KindGRPC:
 			fmt.Fprintf(w, "  class %s grpc\n", sanitizeID(node.ID))
-		case structmap.KindInfra:
+		case govis.KindInfra:
 			fmt.Fprintf(w, "  class %s infra\n", sanitizeID(node.ID))
 		}
 		
@@ -159,23 +159,23 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	return nil
 }
 
-func (m *MermaidRenderer) renderNode(w io.Writer, n *structmap.Node) {
+func (m *MermaidRenderer) renderNode(w io.Writer, n *govis.Node) {
 	nodeID := sanitizeID(n.ID)
 	
 	fmt.Fprintf(w, "    class %s {\n", nodeID)
 
 	switch n.Kind {
-	case structmap.KindInterface:
+	case govis.KindInterface:
 		fmt.Fprintln(w, "      <<interface>>")
-	case structmap.KindHandler:
+	case govis.KindHandler:
 		fmt.Fprintln(w, "      <<handler>>")
-	case structmap.KindService:
+	case govis.KindService:
 		fmt.Fprintln(w, "      <<service>>")
-	case structmap.KindStore:
+	case govis.KindStore:
 		fmt.Fprintln(w, "      <<store>>")
-	case structmap.KindModel:
+	case govis.KindModel:
 		fmt.Fprintln(w, "      <<model>>")
-	case structmap.KindFunc:
+	case govis.KindFunc:
 		fmt.Fprintln(w, "      <<function>>")
 	}
 

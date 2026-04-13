@@ -5,16 +5,16 @@ import (
 	"io"
 	"strings"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // TimelineRenderer generates a Markdown timeline showing architecture evolution
 // across git tags/releases.
 type TimelineRenderer struct {
-	Snapshots []structmap.EvolutionSnapshot
+	Snapshots []govis.EvolutionSnapshot
 }
 
-func (t *TimelineRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (t *TimelineRenderer) Render(g *govis.Graph, w io.Writer) error {
 	if len(t.Snapshots) == 0 {
 		fmt.Fprintln(w, "No evolution snapshots available.")
 		return nil
@@ -37,7 +37,7 @@ func (t *TimelineRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "")
 
 	// Collect all kinds
-	allKinds := make(map[structmap.NodeKind]bool)
+	allKinds := make(map[govis.NodeKind]bool)
 	for _, s := range t.Snapshots {
 		for k := range s.KindCount {
 			allKinds[k] = true

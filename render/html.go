@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 type HTMLRenderer struct{}
 
-func (h *HTMLRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (h *HTMLRenderer) Render(g *govis.Graph, w io.Writer) error {
 	var buf bytes.Buffer
 	m := &MermaidRenderer{}
 	if err := m.Render(g, &buf); err != nil {
 		return err
 	}
 
-	summaryHTML := structmap.GetSummaryHTML(g)
+	summaryHTML := govis.GetSummaryHTML(g)
 
 	htmlTemplate := `<!DOCTYPE html>
 <html>

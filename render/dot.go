@@ -5,12 +5,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 type DOTRenderer struct{}
 
-func (d *DOTRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (d *DOTRenderer) Render(g *govis.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "digraph G {")
 	fmt.Fprintln(w, "  rankdir=LR")
 	fmt.Fprintln(w, "  node [shape=record]")
@@ -37,13 +37,13 @@ func (d *DOTRenderer) Render(g *structmap.Graph, w io.Writer) error {
 		label := ""
 		style := ""
 		switch edge.Kind {
-		case structmap.EdgeImplements:
+		case govis.EdgeImplements:
 			label = "implements"
 			style = "dashed"
-		case structmap.EdgeDepends:
+		case govis.EdgeDepends:
 			label = "depends"
 			style = "solid"
-		case structmap.EdgeEmbeds:
+		case govis.EdgeEmbeds:
 			label = "embeds"
 			style = "solid"
 		}
@@ -55,7 +55,7 @@ func (d *DOTRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	return nil
 }
 
-func (d *DOTRenderer) renderNode(w io.Writer, n *structmap.Node) {
+func (d *DOTRenderer) renderNode(w io.Writer, n *govis.Node) {
 	nodeID := sanitizeID(n.ID)
 	
 	// Create a record-shaped label
@@ -72,15 +72,15 @@ func (d *DOTRenderer) renderNode(w io.Writer, n *structmap.Node) {
 	lines := []string{}
 	title := n.Name
 	switch n.Kind {
-	case structmap.KindInterface:
+	case govis.KindInterface:
 		title = fmt.Sprintf("«interface»\\n%s", n.Name)
-	case structmap.KindHandler:
+	case govis.KindHandler:
 		title = fmt.Sprintf("«handler»\\n%s", n.Name)
-	case structmap.KindService:
+	case govis.KindService:
 		title = fmt.Sprintf("«service»\\n%s", n.Name)
-	case structmap.KindStore:
+	case govis.KindStore:
 		title = fmt.Sprintf("«store»\\n%s", n.Name)
-	case structmap.KindModel:
+	case govis.KindModel:
 		title = fmt.Sprintf("«model»\\n%s", n.Name)
 	}
 
@@ -103,13 +103,13 @@ func (d *DOTRenderer) renderNode(w io.Writer, n *structmap.Node) {
 	// Add color filling for node rendering
 	colorAttr := `fillcolor="white", style="filled"`
 	switch n.Kind {
-	case structmap.KindHandler:
+	case govis.KindHandler:
 		colorAttr = `fillcolor="#d4edda", style="filled", color="#155724"`
-	case structmap.KindService:
+	case govis.KindService:
 		colorAttr = `fillcolor="#cce5ff", style="filled", color="#004085"`
-	case structmap.KindStore:
+	case govis.KindStore:
 		colorAttr = `fillcolor="#ffeeba", style="filled", color="#856404"`
-	case structmap.KindModel:
+	case govis.KindModel:
 		colorAttr = `fillcolor="#f8d7da", style="filled", color="#721c24"`
 	}
 

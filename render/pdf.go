@@ -6,7 +6,7 @@ import (
 	"io"
 	"os/exec"
 
-	structmap "github.com/zopdev/govis"
+	govis "github.com/zopdev/govis"
 )
 
 // PDFRenderer generates a PDF by first rendering to DOT format and then
@@ -14,7 +14,7 @@ import (
 // Falls back to DOT output with instructions if Graphviz is not installed.
 type PDFRenderer struct{}
 
-func (p *PDFRenderer) Render(g *structmap.Graph, w io.Writer) error {
+func (p *PDFRenderer) Render(g *govis.Graph, w io.Writer) error {
 	// First render to DOT format
 	var dotBuf bytes.Buffer
 	dot := &DOTRenderer{}
