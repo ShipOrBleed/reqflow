@@ -20,10 +20,14 @@ type ParseOptions struct {
 	Heatmap    bool
 	CallGraph  bool
 	DataFlow   bool
-	EnvMap     bool
-	TableMap   bool
-	DepTree    bool
-	InfraTopo  bool
+	EnvMap       bool
+	TableMap     bool
+	DepTree      bool
+	InfraTopo    bool
+	Churn        bool
+	Contributors bool
+	PRImpact     string // base ref for PR impact (e.g. "main")
+	Evolution    string // comma-separated git tags
 }
 
 // Parse loads Go packages from the target directory and builds the
@@ -132,6 +136,17 @@ func Parse(opts ParseOptions) (*Graph, error) {
 
 	// Pass 5: Runtime pattern detection
 	DetectConcurrency(pkgs, graph)
+
+	// Pass 5b: Git-based analysis
+	if opts.Churn {
+		ExtractChurn(dir, graph)
+	}
+	if opts.Contributors {
+		ExtractContributors(dir, graph)
+	}
+	if opts.PRImpact != "" {
+		ExtractPRImpact(dir, opts.PRImpact, graph)
+	}
 
 	// Pass 6: Scope filtering (always last)
 	if opts.Focus != "" {

@@ -80,6 +80,11 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 	fmt.Fprintln(w, "  classDef coverCritical fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:3px")
 	fmt.Fprintln(w, "  classDef coverLow fill:#fff3cd,stroke:#ffc107,color:#856404,stroke-width:3px")
 	fmt.Fprintln(w, "  classDef coverHealthy fill:#d4edda,stroke:#28a745,color:#155724,stroke-width:3px")
+	fmt.Fprintln(w, "  classDef churnHot fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:4px")
+	fmt.Fprintln(w, "  classDef churnWarm fill:#fff3cd,stroke:#ffc107,color:#856404,stroke-width:3px")
+	fmt.Fprintln(w, "  classDef churnCold fill:#cce5ff,stroke:#007bff,color:#004085,stroke-width:2px")
+	fmt.Fprintln(w, "  classDef impactDirect fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-width:4px,stroke-dasharray: 8 4")
+	fmt.Fprintln(w, "  classDef impactIndirect fill:#fff3cd,stroke:#ffc107,color:#856404,stroke-width:3px,stroke-dasharray: 4 4")
 	
 	for _, node := range g.Nodes {
 		if node.Meta["diff"] == "new" {
@@ -109,6 +114,28 @@ func (m *MermaidRenderer) Render(g *structmap.Graph, w io.Writer) error {
 			fmt.Fprintf(w, "  class %s infra\n", sanitizeID(node.ID))
 		}
 		
+		// Churn heatmap overlay
+		if risk, ok := node.Meta["churn_risk"]; ok {
+			switch risk {
+			case "hot":
+				fmt.Fprintf(w, "  class %s churnHot\n", sanitizeID(node.ID))
+			case "warm":
+				fmt.Fprintf(w, "  class %s churnWarm\n", sanitizeID(node.ID))
+			case "cold":
+				fmt.Fprintf(w, "  class %s churnCold\n", sanitizeID(node.ID))
+			}
+		}
+
+		// PR impact overlay
+		if impact, ok := node.Meta["pr_impact"]; ok {
+			switch impact {
+			case "direct":
+				fmt.Fprintf(w, "  class %s impactDirect\n", sanitizeID(node.ID))
+			case "indirect":
+				fmt.Fprintf(w, "  class %s impactIndirect\n", sanitizeID(node.ID))
+			}
+		}
+
 		// Coverage heatmap overlay (overrides kind color when coverage data exists)
 		if risk, ok := node.Meta["coverage_risk"]; ok {
 			switch risk {

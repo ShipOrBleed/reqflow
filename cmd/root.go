@@ -52,6 +52,10 @@ func Execute() {
 	tableMap := flag.Bool("tablemap", false, "Visualize model-to-database-table mappings")
 	depTree := flag.Bool("deptree", false, "Visualize full go.mod transitive dependency tree")
 	infraTopo := flag.Bool("infratopo", false, "Visualize Docker/K8s infrastructure topology")
+	churn := flag.Bool("churn", false, "Overlay code churn heatmap (git commit frequency)")
+	contributors := flag.Bool("contributors", false, "Show contributor map per component")
+	prImpact := flag.String("pr-impact", "", "Visualize PR impact against a base ref (e.g. 'main')")
+	evolution := flag.String("evolution", "", "Architecture evolution timeline across git tags (comma-separated)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
@@ -85,7 +89,11 @@ func Execute() {
 		EnvMap:     *envMap,
 		TableMap:   *tableMap,
 		DepTree:    *depTree,
-		InfraTopo:  *infraTopo,
+		InfraTopo:    *infraTopo,
+		Churn:        *churn,
+		Contributors: *contributors,
+		PRImpact:     *prImpact,
+		Evolution:    *evolution,
 	}
 
 	// ---- Full Audit Mode ----
@@ -149,6 +157,25 @@ func Execute() {
 	// ---- Live Server Mode ----
 	if *serve != "" {
 		startServer(*serve, opts)
+		return
+	}
+
+	// ---- Evolution Timeline ----
+	if *evolution != "" {
+		refs := strings.Split(*evolution, ",")
+		snapshots := structmap.ExtractEvolution(dir, refs, opts)
+		tr := &render.TimelineRenderer{Snapshots: snapshots}
+		w := os.Stdout
+		if *out != "" {
+			f, err := os.Create(*out)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
+				os.Exit(1)
+			}
+			defer f.Close()
+			w = f
+		}
+		tr.Render(graph, w)
 		return
 	}
 
