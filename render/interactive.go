@@ -4,78 +4,90 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	govis "github.com/thzgajendra/govis"
 )
 
-// InteractiveRenderer generates a self-contained HTML page with Cytoscape.js
-// for interactive, force-directed graph visualization.
+// InteractiveRenderer generates a self-contained HTML page with a layered
+// architecture visualization — handlers at top, services in middle, stores
+// and models at bottom, grouped by package.
 type InteractiveRenderer struct{}
 
-type cyNode struct {
+type layerNode struct {
 	ID      string            `json:"id"`
 	Label   string            `json:"label"`
 	Kind    string            `json:"kind"`
 	Pkg     string            `json:"pkg"`
+	PkgName string            `json:"pkgName"`
 	File    string            `json:"file"`
 	Line    int               `json:"line"`
 	Methods []string          `json:"methods,omitempty"`
 	Fields  []string          `json:"fields,omitempty"`
 	Meta    map[string]string `json:"meta,omitempty"`
-	Parent  string            `json:"parent,omitempty"`
 }
 
-type cyEdge struct {
+type layerEdge struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
 	Kind   string `json:"kind"`
 }
 
-type cyGraph struct {
-	Nodes    []cyNode `json:"nodes"`
-	Edges    []cyEdge `json:"edges"`
-	Clusters []string `json:"clusters"`
+type layerData struct {
+	Nodes []layerNode `json:"nodes"`
+	Edges []layerEdge `json:"edges"`
 }
 
 func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
-	cg := cyGraph{}
+	ld := layerData{}
 
-	// Add compound parent nodes for each cluster/package
-	for pkg := range g.Clusters {
-		cg.Clusters = append(cg.Clusters, pkg)
-	}
-
-	// Add nodes
 	for _, node := range g.Nodes {
 		var fields []string
 		for _, f := range node.Fields {
 			fields = append(fields, fmt.Sprintf("%s %s", f.Name, f.Type))
 		}
-		cg.Nodes = append(cg.Nodes, cyNode{
+		pkgParts := strings.Split(node.Package, "/")
+		pkgName := pkgParts[len(pkgParts)-1]
+
+		ld.Nodes = append(ld.Nodes, layerNode{
 			ID:      node.ID,
 			Label:   node.Name,
 			Kind:    string(node.Kind),
 			Pkg:     node.Package,
+			PkgName: pkgName,
 			File:    node.File,
 			Line:    node.Line,
 			Methods: node.Methods,
 			Fields:  fields,
 			Meta:    node.Meta,
-			Parent:  node.Package,
 		})
 	}
 
-	// Add edges
+	// Sort nodes by kind then name for consistent layout
+	sort.Slice(ld.Nodes, func(i, j int) bool {
+		if ld.Nodes[i].Kind != ld.Nodes[j].Kind {
+			return ld.Nodes[i].Kind < ld.Nodes[j].Kind
+		}
+		return ld.Nodes[i].Label < ld.Nodes[j].Label
+	})
+
+	nodeIDs := make(map[string]bool)
+	for _, n := range ld.Nodes {
+		nodeIDs[n.ID] = true
+	}
+
 	for _, edge := range g.Edges {
-		cg.Edges = append(cg.Edges, cyEdge{
-			Source: edge.From,
-			Target: edge.To,
-			Kind:   string(edge.Kind),
-		})
+		if nodeIDs[edge.From] && nodeIDs[edge.To] {
+			ld.Edges = append(ld.Edges, layerEdge{
+				Source: edge.From,
+				Target: edge.To,
+				Kind:   string(edge.Kind),
+			})
+		}
 	}
 
-	graphJSON, err := json.Marshal(cg)
+	graphJSON, err := json.Marshal(ld)
 	if err != nil {
 		return fmt.Errorf("marshalling graph: %w", err)
 	}
@@ -89,9 +101,14 @@ func (ir *InteractiveRenderer) Render(g *govis.Graph, w io.Writer) error {
 	}
 	var filterHTML strings.Builder
 	for kind, count := range kindCounts {
+		checked := "checked"
+		// Hide plain funcs/structs/interfaces by default
+		if kind == "func" || kind == "struct" || kind == "interface" {
+			checked = ""
+		}
 		filterHTML.WriteString(fmt.Sprintf(
-			`<label class="filter-item"><input type="checkbox" checked data-kind="%s" onchange="toggleKind()"> %s (%d)</label>`,
-			kind, kind, count))
+			`<label class="filter-item"><input type="checkbox" %s data-kind="%s" onchange="applyFilters()"> %s (%d)</label>`,
+			checked, kind, kind, count))
 	}
 
 	fmt.Fprintf(w, interactiveTemplate, summaryHTML, filterHTML.String(), string(graphJSON))
@@ -102,82 +119,98 @@ var interactiveTemplate = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Govis Interactive Architecture</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
-    <script src="https://unpkg.com/layout-base/layout-base.js"></script>
-    <script src="https://unpkg.com/cose-base/cose-base.js"></script>
-    <script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
+    <title>Govis Architecture</title>
     <style>
         :root {
-            --bg: #0f172a;
-            --surface: #1e293b;
-            --accent: #38bdf8;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
+            --bg: #0f172a; --surface: #1e293b; --surface2: #273449;
+            --accent: #38bdf8; --text: #f1f5f9; --text-muted: #94a3b8; --border: #334155;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        header {
-            background: var(--surface); padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .logo { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+        header { background: var(--surface); padding: 10px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .logo { font-size: 1.3rem; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
         .logo span { color: var(--text); font-weight: 400; }
 
         .main { display: flex; flex: 1; overflow: hidden; }
 
-        .sidebar {
-            width: 300px; background: var(--surface); border-right: 1px solid var(--border);
-            padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem;
-        }
-        .sidebar h4 { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-        .stat-card { background: var(--bg); padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border); text-align: center; }
-        .stat-card h3 { font-size: 1.1rem; color: var(--accent); }
-        .stat-card p { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-top: 0.2rem; }
-
-        .filter-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; cursor: pointer; padding: 0.15rem 0; }
+        .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); padding: 12px; overflow-y: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
+        .sidebar h4 { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .stat-card { background: var(--bg); padding: 6px; border-radius: 6px; border: 1px solid var(--border); text-align: center; }
+        .stat-card h3 { font-size: 1rem; color: var(--accent); }
+        .stat-card p { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; }
+        .filter-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; cursor: pointer; padding: 2px 0; }
         .filter-item input { accent-color: var(--accent); }
-
-        #search { width: 100%%; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; }
+        #search { width: 100%%; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 0.8rem; }
         #search::placeholder { color: var(--text-muted); }
 
-        #cy { flex: 1; }
+        .canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+        #canvas { position: absolute; inset: 0; overflow: auto; padding: 30px; }
+
+        .layer { margin-bottom: 24px; }
+        .layer-header { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; padding-left: 4px; border-left: 3px solid; }
+        .layer-header.handler { border-color: #28a745; color: #28a745; }
+        .layer-header.service { border-color: #007bff; color: #007bff; }
+        .layer-header.store { border-color: #ffc107; color: #ffc107; }
+        .layer-header.model { border-color: #dc3545; color: #dc3545; }
+        .layer-header.event { border-color: #adb5bd; color: #adb5bd; }
+        .layer-header.grpc { border-color: #0dcaf0; color: #0dcaf0; }
+        .layer-header.infra { border-color: #6c3483; color: #6c3483; }
+        .layer-header.other { border-color: #6c757d; color: #6c757d; }
+
+        .layer-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
+        .node-card {
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+            padding: 8px 12px; cursor: pointer; transition: all 0.15s; min-width: 120px; max-width: 220px;
+            position: relative;
+        }
+        .node-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .node-card.selected { border-color: var(--accent); background: #1a3a5c; }
+        .node-card.search-match { border-color: #fbbf24; box-shadow: 0 0 0 2px rgba(251,191,36,0.3); }
+
+        .node-name { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .node-pkg { font-size: 0.6rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .node-badge { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border-radius: 50%%; border: 2px solid var(--surface2); }
+        .node-route { font-size: 0.6rem; color: #22c55e; margin-top: 3px; font-family: monospace; }
+
+        .node-card.kind-handler { border-left: 3px solid #28a745; }
+        .node-card.kind-service { border-left: 3px solid #007bff; }
+        .node-card.kind-store { border-left: 3px solid #ffc107; }
+        .node-card.kind-model { border-left: 3px solid #dc3545; }
+        .node-card.kind-event { border-left: 3px solid #adb5bd; }
+        .node-card.kind-grpc { border-left: 3px solid #0dcaf0; }
+        .node-card.kind-infra { border-left: 3px solid #6c3483; }
+        .node-card.kind-middleware { border-left: 3px solid #856404; }
+        .node-card.kind-func { border-left: 3px solid #6c757d; }
+        .node-card.kind-struct { border-left: 3px solid #6c757d; }
+        .node-card.kind-interface { border-left: 3px solid #6c757d; }
 
         .detail-panel {
-            display: none; position: fixed; bottom: 1rem; right: 1rem; width: 340px;
+            display: none; position: fixed; top: 60px; right: 16px; width: 340px; max-height: calc(100vh - 80px);
             background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-            padding: 1rem; box-shadow: 0 16px 40px rgba(0,0,0,0.5); z-index: 50; max-height: 50vh; overflow-y: auto;
+            padding: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.5); z-index: 50; overflow-y: auto;
         }
-        .detail-panel h3 { color: var(--accent); margin-bottom: 0.5rem; font-size: 1rem; }
-        .detail-panel .kind-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; text-transform: uppercase; font-weight: 600; margin-bottom: 0.5rem; }
-        .detail-panel .meta-item { font-size: 0.8rem; color: var(--text-muted); padding: 0.2rem 0; }
-        .detail-panel .meta-item strong { color: var(--text); }
-        .detail-panel .close-btn { position: absolute; top: 0.5rem; right: 0.75rem; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; }
+        .detail-panel h3 { color: var(--accent); font-size: 0.95rem; margin-bottom: 6px; }
+        .detail-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: #fff; }
+        .detail-section { margin-top: 10px; }
+        .detail-section h4 { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .detail-item { font-size: 0.75rem; color: var(--text-muted); padding: 2px 0; }
+        .detail-item strong { color: var(--text); }
+        .detail-close { position: absolute; top: 8px; right: 12px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; }
+        .conn-link { color: var(--accent); cursor: pointer; font-size: 0.75rem; }
+        .conn-link:hover { text-decoration: underline; }
 
-        .controls { position: absolute; top: 0.75rem; right: 0.75rem; display: flex; gap: 0.4rem; z-index: 10; }
-        .controls button {
-            background: var(--surface); border: 1px solid var(--border); color: var(--text);
-            padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
-        }
-        .controls button:hover { background: var(--border); }
-
-        .legend { display: flex; flex-direction: column; gap: 0.3rem; }
-        .legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
-        .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     </style>
 </head>
 <body>
     <header>
-        <div class="logo">GOVIS<span>.interactive</span></div>
-        <div style="font-size:0.75rem;color:var(--text-muted);">Force-Directed Graph</div>
+        <div class="logo">GOVIS<span>.arch</span></div>
+        <div style="font-size:0.7rem;color:var(--text-muted);">Layered Architecture View</div>
     </header>
 
     <div class="main">
@@ -194,314 +227,202 @@ var interactiveTemplate = `<!DOCTYPE html>
                 <h4>Filter by Kind</h4>
                 %s
             </section>
-            <section>
-                <h4>Layers</h4>
-                <div class="legend">
-                    <div class="legend-item"><div class="legend-dot" style="background:#28a745"></div> Handler</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#007bff"></div> Service</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#ffc107"></div> Store</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#dc3545"></div> Model</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#e2e3e5"></div> Event</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#0c5460"></div> gRPC</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#6c3483"></div> Infra</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#6c757d"></div> Other</div>
-                </div>
-            </section>
         </div>
 
-        <div id="cy" style="position:relative;">
-            <div class="controls">
-                <button onclick="cy.fit(null, 50)">Fit</button>
-                <button onclick="cy.zoom(cy.zoom()*1.3);cy.center()">Zoom +</button>
-                <button onclick="cy.zoom(cy.zoom()*0.7);cy.center()">Zoom -</button>
-                <button onclick="runLayout()">Re-layout</button>
-                <button id="toggle-isolates" onclick="toggleIsolates()">Show Isolated</button>
-            </div>
-            <div id="loading" style="position:absolute;top:50%%;left:50%%;transform:translate(-50%%,-50%%);color:var(--accent);font-size:1.2rem;">Loading graph...</div>
+        <div class="canvas-wrap">
+            <div id="canvas"></div>
         </div>
     </div>
 
     <div class="detail-panel" id="detail">
-        <button class="close-btn" onclick="document.getElementById('detail').style.display='none'">&times;</button>
+        <button class="detail-close" onclick="closeDetail()">&times;</button>
         <div id="detail-content"></div>
     </div>
 
     <script>
-    const graphData = %s;
+    const data = %s;
 
     const kindColors = {
-        handler: '#28a745', service: '#007bff', store: '#ffc107', model: '#dc3545',
-        event: '#e2e3e5', middleware: '#856404', grpc: '#0c5460', infra: '#6c3483',
-        route: '#17a2b8', envvar: '#20c997', table: '#fd7e14', dependency: '#adb5bd',
-        container: '#e83e8c', proto_rpc: '#6610f2', proto_msg: '#e83e8c',
-        struct: '#6c757d', interface: '#6c757d', func: '#6c757d'
+        handler:'#28a745', service:'#007bff', store:'#ffc107', model:'#dc3545',
+        event:'#adb5bd', middleware:'#856404', grpc:'#0dcaf0', infra:'#6c3483',
+        route:'#17a2b8', envvar:'#20c997', table:'#fd7e14', dependency:'#adb5bd',
+        container:'#e83e8c', proto_rpc:'#6610f2', proto_msg:'#e83e8c',
+        struct:'#6c757d', interface:'#6c757d', func:'#6c757d'
     };
 
-    const kindShapes = {
-        handler: 'round-rectangle', service: 'ellipse', store: 'barrel',
-        model: 'diamond', event: 'tag', middleware: 'round-hexagon',
-        grpc: 'hexagon', infra: 'octagon', interface: 'cut-rectangle',
-        route: 'round-triangle', table: 'barrel', container: 'rectangle',
-        struct: 'rectangle', func: 'round-rectangle'
-    };
+    // Layer ordering (top to bottom)
+    const layerOrder = ['handler','grpc','middleware','service','event','store','model','infra','route','envvar','table','container','proto_rpc','proto_msg','interface','struct','func'];
 
-    const edgeColors = {
-        depends: '#64748b', implements: '#38bdf8', embeds: '#a78bfa',
-        calls: '#f472b6', flows: '#22c55e', reads: '#facc15',
-        maps_to: '#fb923c', publishes: '#34d399', subscribes: '#f87171',
-        rpc: '#818cf8', transitive: '#475569'
-    };
-
-    const elements = [];
-    const nodeCount = graphData.nodes.length;
-
-    // Architectural kinds that are always shown
-    const archKinds = new Set(['handler','service','store','model','event','middleware','grpc','infra','route','envvar','table','container','proto_rpc','proto_msg']);
-
-    // Build edge lookup to identify connected nodes
-    const nodeIDs = new Set(graphData.nodes.map(n => n.id));
-    const connectedNodes = new Set();
-    const validEdges = [];
-    graphData.edges.forEach(e => {
-        if (nodeIDs.has(e.source) && nodeIDs.has(e.target)) {
-            connectedNodes.add(e.source);
-            connectedNodes.add(e.target);
-            validEdges.push(e);
-        }
+    // Build adjacency for connections
+    const outEdges = {};  // nodeID -> [{target, kind}]
+    const inEdges = {};   // nodeID -> [{source, kind}]
+    data.edges.forEach(e => {
+        if (!outEdges[e.source]) outEdges[e.source] = [];
+        outEdges[e.source].push({target: e.target, kind: e.kind});
+        if (!inEdges[e.target]) inEdges[e.target] = [];
+        inEdges[e.target].push({source: e.source, kind: e.kind});
     });
 
-    // Add compound parent nodes for packages (only for packages that have visible nodes)
-    const visiblePkgs = new Set();
-    graphData.nodes.forEach(n => {
-        if (archKinds.has(n.kind) || connectedNodes.has(n.id)) {
-            visiblePkgs.add(n.pkg);
-        }
-    });
-    visiblePkgs.forEach(pkg => {
-        const label = pkg.split('/').pop();
-        elements.push({ data: { id: 'cluster_' + pkg, label: label }, classes: 'cluster' });
-    });
+    // Node lookup
+    const nodeMap = {};
+    data.nodes.forEach(n => nodeMap[n.id] = n);
 
-    // Add nodes — mark isolated non-arch nodes as hidden initially
-    graphData.nodes.forEach(n => {
-        const isArch = archKinds.has(n.kind);
-        const isConnected = connectedNodes.has(n.id);
-        const isVisible = isArch || isConnected;
+    function renderGraph() {
+        const canvas = document.getElementById('canvas');
+        canvas.innerHTML = '';
 
-        elements.push({
-            data: {
-                id: n.id, label: n.label, kind: n.kind, pkg: n.pkg,
-                file: n.file, line: n.line, parent: 'cluster_' + n.pkg,
-                meta: n.meta || {}, methods: n.methods || [], fields: n.fields || []
-            },
-            classes: isVisible ? '' : 'isolated'
+        // Get active kind filters
+        const activeKinds = new Set();
+        document.querySelectorAll('[data-kind]').forEach(cb => {
+            if (cb.checked) activeKinds.add(cb.dataset.kind);
         });
-    });
 
-    // Add edges
-    validEdges.forEach(e => {
-        elements.push({
-            data: { source: e.source, target: e.target, kind: e.kind, label: e.kind }
+        // Group nodes by layer
+        const layers = {};
+        data.nodes.forEach(n => {
+            if (!activeKinds.has(n.kind)) return;
+            if (!layers[n.kind]) layers[n.kind] = [];
+            layers[n.kind].push(n);
         });
-    });
 
-    // Count visible vs total
-    const visibleCount = graphData.nodes.filter(n => archKinds.has(n.kind) || connectedNodes.has(n.id)).length;
-    document.getElementById('toggle-isolates').textContent = 'Show All (' + nodeCount + ')';
+        // Render layers in order
+        layerOrder.forEach(kind => {
+            const nodes = layers[kind];
+            if (!nodes || nodes.length === 0) return;
 
-    const layoutConfig = {
-        name: 'fcose', animate: false, quality: 'proof',
-        nodeRepulsion: 6000, idealEdgeLength: 100, edgeElasticity: 0.45,
-        gravity: 0.3, gravityRange: 2.0, numIter: 5000, tile: true,
-        tilingPaddingVertical: 20, tilingPaddingHorizontal: 20, nodeSeparation: 50
-    };
+            const layerDiv = document.createElement('div');
+            layerDiv.className = 'layer';
 
-    const cy = cytoscape({
-        container: document.getElementById('cy'),
-        elements: elements,
-        style: [
-            {
-                selector: 'node[kind]',
-                style: {
-                    'label': 'data(label)',
-                    'background-color': function(ele) { return kindColors[ele.data('kind')] || '#6c757d'; },
-                    'shape': function(ele) { return kindShapes[ele.data('kind')] || 'rectangle'; },
-                    'color': '#f8fafc',
-                    'text-outline-color': '#0f172a',
-                    'text-outline-width': 2,
-                    'font-size': '10px',
-                    'width': 30,
-                    'height': 30,
-                    'text-valign': 'bottom',
-                    'text-margin-y': 6,
-                    'border-width': 2,
-                    'border-color': function(ele) { return kindColors[ele.data('kind')] || '#6c757d'; }
+            const layerName = kind.charAt(0).toUpperCase() + kind.slice(1) + 's';
+            const headerClass = ['handler','service','store','model','event','grpc','infra'].includes(kind) ? kind : 'other';
+            layerDiv.innerHTML = '<div class="layer-header ' + headerClass + '">' + layerName + ' (' + nodes.length + ')</div>';
+
+            const grid = document.createElement('div');
+            grid.className = 'layer-grid';
+
+            // Sort by package then name
+            nodes.sort((a,b) => (a.pkgName + a.label).localeCompare(b.pkgName + b.label));
+
+            nodes.forEach(n => {
+                const card = document.createElement('div');
+                card.className = 'node-card kind-' + n.kind;
+                card.dataset.id = n.id;
+                card.onclick = () => showDetail(n.id);
+
+                let html = '<div class="node-name" title="' + n.label + '">' + n.label + '</div>';
+                html += '<div class="node-pkg" title="' + n.pkgName + '">' + n.pkgName + '</div>';
+
+                if (n.meta && n.meta.route) {
+                    html += '<div class="node-route">' + n.meta.route + '</div>';
                 }
-            },
-            {
-                selector: ':parent',
-                style: {
-                    'background-color': '#1e293b',
-                    'background-opacity': 0.6,
-                    'border-color': '#334155',
-                    'border-width': 1,
-                    'label': 'data(label)',
-                    'color': '#94a3b8',
-                    'font-size': '10px',
-                    'text-valign': 'top',
-                    'text-halign': 'center',
-                    'padding': '12px',
-                    'shape': 'round-rectangle'
-                }
-            },
-            {
-                selector: 'edge',
-                style: {
-                    'width': 1.5,
-                    'line-color': function(ele) { return edgeColors[ele.data('kind')] || '#64748b'; },
-                    'target-arrow-color': function(ele) { return edgeColors[ele.data('kind')] || '#64748b'; },
-                    'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier',
-                    'arrow-scale': 0.8,
-                    'opacity': 0.7
-                }
-            },
-            {
-                selector: 'edge[kind="implements"]',
-                style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3] }
-            },
-            {
-                selector: 'edge[kind="embeds"]',
-                style: { 'width': 2.5 }
-            },
-            {
-                selector: 'edge[kind="calls"]',
-                style: { 'line-style': 'dotted' }
-            },
-            {
-                selector: 'node:selected',
-                style: { 'border-width': 4, 'border-color': '#38bdf8', 'background-color': '#38bdf8' }
-            },
-            {
-                selector: '.highlighted',
-                style: { 'border-width': 3, 'border-color': '#fbbf24', 'background-color': '#fbbf24' }
-            },
-            {
-                selector: '.dimmed',
-                style: { 'opacity': 0.15 }
-            },
-            {
-                selector: '.neighbor',
-                style: { 'opacity': 1, 'border-width': 3, 'border-color': '#22c55e' }
-            },
-            {
-                selector: '.hidden',
-                style: { 'display': 'none' }
-            },
-            {
-                selector: '.isolated',
-                style: { 'display': 'none' }
-            }
-        ],
-        layout: layoutConfig,
-        wheelSensitivity: 0.3,
-        minZoom: 0.05,
-        maxZoom: 5
-    });
 
-    // Remove loading indicator
-    document.getElementById('loading').style.display = 'none';
+                const connections = (outEdges[n.id]||[]).length + (inEdges[n.id]||[]).length;
+                if (connections > 0) {
+                    html += '<div class="node-badge" style="background:' + (kindColors[n.kind]||'#6c757d') + '"></div>';
+                }
 
-    function runLayout() {
-        cy.layout(Object.assign({}, layoutConfig, { animate: true, animationDuration: 800 })).run();
+                card.innerHTML = html;
+                grid.appendChild(card);
+            });
+
+            layerDiv.appendChild(grid);
+            canvas.appendChild(layerDiv);
+        });
     }
 
-    let showingIsolates = false;
-    function toggleIsolates() {
-        showingIsolates = !showingIsolates;
-        if (showingIsolates) {
-            cy.nodes('.isolated').removeClass('isolated').addClass('was-isolated');
-            document.getElementById('toggle-isolates').textContent = 'Hide Isolated (' + visibleCount + ')';
-        } else {
-            cy.nodes('.was-isolated').removeClass('was-isolated').addClass('isolated');
-            document.getElementById('toggle-isolates').textContent = 'Show All (' + nodeCount + ')';
-        }
-        runLayout();
-    }
+    function showDetail(id) {
+        // Clear previous selection
+        document.querySelectorAll('.node-card.selected').forEach(c => c.classList.remove('selected'));
+        const card = document.querySelector('[data-id="' + CSS.escape(id) + '"]');
+        if (card) card.classList.add('selected');
 
-    // Click to show detail panel
-    cy.on('tap', 'node[kind]', function(evt) {
-        const d = evt.target.data();
+        const n = nodeMap[id];
+        if (!n) return;
+
         const panel = document.getElementById('detail');
         const content = document.getElementById('detail-content');
 
-        let html = '<h3>' + d.label + '</h3>';
-        html += '<div class="kind-badge" style="background:' + (kindColors[d.kind]||'#6c757d') + ';color:#fff;">' + d.kind + '</div>';
-        html += '<div class="meta-item"><strong>Package:</strong> ' + d.pkg + '</div>';
-        if (d.file) html += '<div class="meta-item"><strong>File:</strong> ' + d.file + ':' + d.line + '</div>';
+        let html = '<h3>' + n.label + '</h3>';
+        html += '<div class="detail-badge" style="background:' + (kindColors[n.kind]||'#6c757d') + '">' + n.kind + '</div>';
 
-        if (d.methods && d.methods.length > 0) {
-            html += '<div class="meta-item"><strong>Methods:</strong></div>';
-            d.methods.forEach(m => { html += '<div class="meta-item" style="padding-left:1rem;">' + m + '()</div>'; });
-        }
-        if (d.fields && d.fields.length > 0) {
-            html += '<div class="meta-item"><strong>Fields:</strong></div>';
-            d.fields.forEach(f => { html += '<div class="meta-item" style="padding-left:1rem;">' + f + '</div>'; });
-        }
+        html += '<div class="detail-section"><h4>Location</h4>';
+        html += '<div class="detail-item"><strong>Package:</strong> ' + n.pkg + '</div>';
+        if (n.file) html += '<div class="detail-item"><strong>File:</strong> ' + n.file + ':' + n.line + '</div>';
+        html += '</div>';
 
-        const meta = d.meta || {};
-        const metaKeys = Object.keys(meta);
+        // Metadata
+        const meta = n.meta || {};
+        const metaKeys = Object.keys(meta).filter(k => meta[k]);
         if (metaKeys.length > 0) {
-            html += '<div class="meta-item" style="margin-top:0.5rem;"><strong>Metadata:</strong></div>';
-            metaKeys.forEach(k => { html += '<div class="meta-item" style="padding-left:1rem;"><strong>' + k + ':</strong> ' + meta[k] + '</div>'; });
+            html += '<div class="detail-section"><h4>Metadata</h4>';
+            metaKeys.forEach(k => {
+                html += '<div class="detail-item"><strong>' + k + ':</strong> ' + meta[k] + '</div>';
+            });
+            html += '</div>';
         }
 
-        // Show connections
-        const neighborhood = evt.target.neighborhood();
-        const incoming = neighborhood.filter('edge[target="' + d.id + '"]');
-        const outgoing = neighborhood.filter('edge[source="' + d.id + '"]');
-        html += '<div class="meta-item" style="margin-top:0.5rem;"><strong>Connections:</strong> ' + incoming.length + ' in, ' + outgoing.length + ' out</div>';
+        // Methods
+        if (n.methods && n.methods.length > 0) {
+            html += '<div class="detail-section"><h4>Methods (' + n.methods.length + ')</h4>';
+            n.methods.forEach(m => { html += '<div class="detail-item" style="font-family:monospace">' + m + '()</div>'; });
+            html += '</div>';
+        }
+
+        // Fields
+        if (n.fields && n.fields.length > 0) {
+            html += '<div class="detail-section"><h4>Fields (' + n.fields.length + ')</h4>';
+            n.fields.slice(0,10).forEach(f => { html += '<div class="detail-item" style="font-family:monospace">' + f + '</div>'; });
+            if (n.fields.length > 10) html += '<div class="detail-item">... +' + (n.fields.length-10) + ' more</div>';
+            html += '</div>';
+        }
+
+        // Connections
+        const outs = outEdges[id] || [];
+        const ins = inEdges[id] || [];
+        if (outs.length > 0 || ins.length > 0) {
+            html += '<div class="detail-section"><h4>Connections (' + ins.length + ' in, ' + outs.length + ' out)</h4>';
+            ins.forEach(e => {
+                const src = nodeMap[e.source];
+                const label = src ? src.label : e.source;
+                html += '<div class="detail-item"><span class="conn-link" onclick="showDetail(\'' + e.source.replace(/'/g,"\\'") + '\')">&larr; ' + label + '</span> <span style="color:#475569">(' + e.kind + ')</span></div>';
+            });
+            outs.forEach(e => {
+                const tgt = nodeMap[e.target];
+                const label = tgt ? tgt.label : e.target;
+                html += '<div class="detail-item"><span class="conn-link" onclick="showDetail(\'' + e.target.replace(/'/g,"\\'") + '\')">&rarr; ' + label + '</span> <span style="color:#475569">(' + e.kind + ')</span></div>';
+            });
+            html += '</div>';
+        }
 
         content.innerHTML = html;
         panel.style.display = 'block';
+    }
 
-        // Highlight neighbors
-        cy.elements().removeClass('dimmed neighbor');
-        cy.elements().not(evt.target.closedNeighborhood()).addClass('dimmed');
-        evt.target.neighborhood().addClass('neighbor');
-    });
-
-    cy.on('tap', function(evt) {
-        if (evt.target === cy) {
-            cy.elements().removeClass('dimmed neighbor');
-            document.getElementById('detail').style.display = 'none';
-        }
-    });
+    function closeDetail() {
+        document.getElementById('detail').style.display = 'none';
+        document.querySelectorAll('.node-card.selected').forEach(c => c.classList.remove('selected'));
+    }
 
     function searchNodes(query) {
-        cy.elements().removeClass('highlighted');
+        document.querySelectorAll('.node-card').forEach(card => card.classList.remove('search-match'));
         if (!query) return;
         const q = query.toLowerCase();
-        cy.nodes().forEach(n => {
-            if (n.data('label') && n.data('label').toLowerCase().includes(q)) {
-                n.addClass('highlighted');
+        document.querySelectorAll('.node-card').forEach(card => {
+            const name = card.querySelector('.node-name').textContent.toLowerCase();
+            const pkg = card.querySelector('.node-pkg').textContent.toLowerCase();
+            if (name.includes(q) || pkg.includes(q)) {
+                card.classList.add('search-match');
+                card.scrollIntoView({behavior:'smooth', block:'center'});
             }
         });
     }
 
-    function toggleKind() {
-        const checkboxes = document.querySelectorAll('[data-kind]');
-        const hidden = new Set();
-        checkboxes.forEach(cb => { if (!cb.checked) hidden.add(cb.dataset.kind); });
-
-        cy.nodes('[kind]').forEach(n => {
-            if (hidden.has(n.data('kind'))) {
-                n.addClass('hidden');
-            } else {
-                n.removeClass('hidden');
-            }
-        });
+    function applyFilters() {
+        renderGraph();
     }
+
+    // Initial render
+    renderGraph();
     </script>
 </body>
 </html>`

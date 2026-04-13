@@ -90,8 +90,8 @@ func TestInteractiveRenderer(t *testing.T) {
 	}
 	out := buf.String()
 
-	if !strings.Contains(out, "cytoscape") {
-		t.Error("Expected cytoscape.js reference")
+	if !strings.Contains(out, "GOVIS") {
+		t.Error("Expected GOVIS branding")
 	}
 	if !strings.Contains(out, "UserHandler") {
 		t.Error("Expected UserHandler in graph data")
