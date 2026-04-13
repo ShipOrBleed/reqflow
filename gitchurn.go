@@ -17,6 +17,7 @@ func ExtractChurn(dir string, graph *Graph) {
 
 	// Verify git is available
 	if _, err := exec.Command("git", "-C", workDir, "rev-parse", "--git-dir").Output(); err != nil {
+		Warn("churn: git not available in %s (skipping)", workDir)
 		return
 	}
 

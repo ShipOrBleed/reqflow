@@ -157,6 +157,7 @@ func LoadCoverageProfile(coverPath string, graph *Graph) error {
 // TECHNICAL DEBT SCANNER (TODO/FIXME/HACK)
 // ============================================================
 
+// TechDebt represents a TODO/FIXME/HACK comment found in the codebase.
 type TechDebt struct {
 	File    string
 	Line    int
@@ -226,6 +227,7 @@ func findClosestNode(graph *Graph, file string, line int) string {
 // CONSTRUCTOR PATTERN VALIDATION
 // ============================================================
 
+// MissingConstructor identifies a struct that lacks a NewXxx() factory function.
 type MissingConstructor struct {
 	StructName string
 	Package    string
@@ -270,6 +272,7 @@ func DetectMissingConstructors(pkgs []*packages.Package, graph *Graph) []Missing
 // SECURITY ANTI-PATTERN DETECTION
 // ============================================================
 
+// SecurityIssue represents a detected security anti-pattern (hardcoded secrets, weak crypto, etc.).
 type SecurityIssue struct {
 	File     string
 	Line     int

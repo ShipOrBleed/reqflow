@@ -6,6 +6,7 @@ import "sort"
 // COMPLEXITY & COUPLING METRICS (Fan-In / Fan-Out)
 // ============================================================
 
+// NodeMetrics holds coupling and complexity metrics for a single graph node.
 type NodeMetrics struct {
 	ID      string
 	Name    string

@@ -13,6 +13,7 @@ import (
 // SWALLOWED ERROR DETECTION
 // ============================================================
 
+// SwallowedError represents a location where an error return value is discarded with _.
 type SwallowedError struct {
 	File     string
 	Line     int

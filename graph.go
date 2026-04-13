@@ -14,6 +14,7 @@
 //	renderer.Render(graph, os.Stdout)
 package govis
 
+// NodeKind classifies a graph node into an architectural layer.
 type NodeKind string
 
 const (
@@ -37,6 +38,9 @@ const (
 	KindProtoMsg  NodeKind = "proto_msg"  // Proto message type
 )
 
+// Node represents a single component in the architecture graph (struct, interface,
+// function, handler, service, store, model, etc.). Nodes are uniquely identified
+// by their ID (typically "package.TypeName") and carry metadata in the Meta map.
 type Node struct {
 	ID      string            // "pkg/path.TypeName"
 	Kind    NodeKind
@@ -49,8 +53,10 @@ type Node struct {
 	Meta    map[string]string // e.g. "route": "GET /users"
 }
 
+// Field represents a struct field with its name, type, and struct tag.
 type Field struct{ Name, Type, Tag string }
 
+// EdgeKind classifies the relationship between two nodes.
 type EdgeKind string
 
 const (
@@ -67,11 +73,14 @@ const (
 	EdgeRPC        EdgeKind = "rpc"        // cross-service RPC call
 )
 
+// Edge represents a directed relationship between two nodes in the graph.
 type Edge struct {
 	From, To string
 	Kind     EdgeKind
 }
 
+// Graph is the core data structure representing the architecture of a Go codebase.
+// It contains nodes (components), edges (relationships), and clusters (package groupings).
 type Graph struct {
 	Nodes    map[string]*Node
 	Edges    []Edge
@@ -79,6 +88,7 @@ type Graph struct {
 	Meta     map[string]string   // graph-level metadata (repo name, commit SHA, etc.)
 }
 
+// NewGraph creates an empty, initialized Graph ready for use.
 func NewGraph() *Graph {
 	return &Graph{
 		Nodes:    make(map[string]*Node),
@@ -87,6 +97,8 @@ func NewGraph() *Graph {
 	}
 }
 
+// AddNode adds a node to the graph, initializing its Meta map if nil,
+// and registering it in the appropriate package cluster.
 func (g *Graph) AddNode(n *Node) {
 	if n.Meta == nil {
 		n.Meta = make(map[string]string)
@@ -95,6 +107,7 @@ func (g *Graph) AddNode(n *Node) {
 	g.Clusters[n.Package] = append(g.Clusters[n.Package], n.ID)
 }
 
+// AddEdge adds a directed edge between two nodes.
 func (g *Graph) AddEdge(from, to string, kind EdgeKind) {
 	g.Edges = append(g.Edges, Edge{From: from, To: to, Kind: kind})
 }

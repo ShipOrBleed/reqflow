@@ -4,6 +4,7 @@ package govis
 // CIRCULAR DEPENDENCY DETECTION (DFS Cycle Finder)
 // ============================================================
 
+// CyclePath represents a circular dependency chain as a slice of node IDs.
 type CyclePath []string
 
 // DetectCycles performs DFS-based cycle detection on the graph.

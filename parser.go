@@ -10,7 +10,9 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// ParseOptions allows configuring the parser
+// ParseOptions configures the Parse function. Dir is the Go module directory
+// to analyze. Boolean flags enable optional analysis passes (call graph,
+// data flow, env map, etc.).
 type ParseOptions struct {
 	Dir        string
 	Filter     string

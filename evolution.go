@@ -26,6 +26,7 @@ func ExtractEvolution(dir string, refs []string, baseOpts ParseOptions) []Evolut
 	}
 
 	if _, err := exec.Command("git", "-C", workDir, "rev-parse", "--git-dir").Output(); err != nil {
+		Warn("evolution: git not available in %s (skipping)", workDir)
 		return nil
 	}
 

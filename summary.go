@@ -3,11 +3,18 @@ package govis
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 )
 
 // Version is set at build time via ldflags
 var Version = "dev"
+
+// Warn prints a warning message to stderr. Used by analysis functions
+// that encounter non-fatal errors (e.g., git not available, file not found).
+func Warn(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "  ⚠ "+format+"\n", args...)
+}
 
 // PrintSummary outputs a quick human-readable stats overview of the graph.
 func PrintSummary(g *Graph, w io.Writer) {

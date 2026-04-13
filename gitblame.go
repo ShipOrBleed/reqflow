@@ -16,6 +16,7 @@ func ExtractContributors(dir string, graph *Graph) {
 	}
 
 	if _, err := exec.Command("git", "-C", workDir, "rev-parse", "--git-dir").Output(); err != nil {
+		Warn("contributors: git not available in %s (skipping)", workDir)
 		return
 	}
 

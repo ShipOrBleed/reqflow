@@ -68,11 +68,13 @@ type spanMetrics struct {
 func ExtractOtelTrace(filePath string, graph *Graph) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
+		Warn("otel-trace: cannot read %s: %v", filePath, err)
 		return
 	}
 
 	var export OTLPExport
 	if err := json.Unmarshal(data, &export); err != nil {
+		Warn("otel-trace: invalid JSON in %s: %v", filePath, err)
 		return
 	}
 

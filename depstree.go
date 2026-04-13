@@ -30,6 +30,7 @@ func ExtractDepTree(dir string, graph *Graph) {
 	cmd.Dir = workDir
 	out, err := cmd.Output()
 	if err != nil {
+		Warn("deptree: 'go list -m -json all' failed in %s (skipping)", workDir)
 		return
 	}
 
