@@ -104,6 +104,9 @@ var interactiveTemplate = `<!DOCTYPE html>
     <meta charset="utf-8">
     <title>Govis Interactive Architecture</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/layout-base/layout-base.js"></script>
+    <script src="https://unpkg.com/cose-base/cose-base.js"></script>
+    <script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
     <style>
         :root {
             --bg: #0f172a;
@@ -248,28 +251,43 @@ var interactiveTemplate = `<!DOCTYPE html>
     };
 
     const elements = [];
+    const nodeCount = graphData.nodes.length;
+    const isLarge = nodeCount > 200;
 
-    // Add compound parent nodes for clusters
-    const clusters = new Set(graphData.nodes.map(n => n.pkg));
-    clusters.forEach(pkg => {
-        elements.push({ data: { id: 'cluster_' + pkg, label: pkg.split('/').pop() }, classes: 'cluster' });
-    });
+    // For small graphs, use compound parent nodes for package clustering
+    if (!isLarge) {
+        const clusters = new Set(graphData.nodes.map(n => n.pkg));
+        clusters.forEach(pkg => {
+            elements.push({ data: { id: 'cluster_' + pkg, label: pkg.split('/').pop() }, classes: 'cluster' });
+        });
+    }
+
+    // Build a set of valid node IDs for edge filtering
+    const nodeIDs = new Set(graphData.nodes.map(n => n.id));
 
     graphData.nodes.forEach(n => {
-        elements.push({
-            data: {
-                id: n.id, label: n.label, kind: n.kind, pkg: n.pkg,
-                file: n.file, line: n.line, parent: 'cluster_' + n.pkg,
-                meta: n.meta || {}, methods: n.methods || [], fields: n.fields || []
-            }
-        });
+        const data = {
+            id: n.id, label: n.label, kind: n.kind, pkg: n.pkg,
+            file: n.file, line: n.line,
+            meta: n.meta || {}, methods: n.methods || [], fields: n.fields || []
+        };
+        if (!isLarge) data.parent = 'cluster_' + n.pkg;
+        elements.push({ data: data });
     });
 
+    // Only add edges where both source and target exist
     graphData.edges.forEach(e => {
-        elements.push({
-            data: { source: e.source, target: e.target, kind: e.kind, label: e.kind }
-        });
+        if (nodeIDs.has(e.source) && nodeIDs.has(e.target)) {
+            elements.push({
+                data: { source: e.source, target: e.target, kind: e.kind, label: e.kind }
+            });
+        }
     });
+
+    // Choose layout based on graph size
+    const layoutConfig = isLarge
+        ? { name: 'fcose', animate: false, quality: 'default', nodeRepulsion: 4500, idealEdgeLength: 80, edgeElasticity: 0.45, gravity: 0.4, gravityRange: 3.8, numIter: 2500, tile: true, tilingPaddingVertical: 10, tilingPaddingHorizontal: 10, nodeSeparation: 75 }
+        : { name: 'fcose', animate: false, quality: 'proof', nodeRepulsion: 8000, idealEdgeLength: 120, edgeElasticity: 0.45, gravity: 0.25, numIter: 5000 };
 
     const cy = cytoscape({
         container: document.getElementById('cy'),
@@ -284,9 +302,9 @@ var interactiveTemplate = `<!DOCTYPE html>
                     'color': '#f8fafc',
                     'text-outline-color': '#0f172a',
                     'text-outline-width': 2,
-                    'font-size': '11px',
-                    'width': 40,
-                    'height': 40,
+                    'font-size': isLarge ? '8px' : '11px',
+                    'width': isLarge ? 25 : 40,
+                    'height': isLarge ? 25 : 40,
                     'text-valign': 'bottom',
                     'text-margin-y': 6,
                     'border-width': 2,
@@ -354,14 +372,14 @@ var interactiveTemplate = `<!DOCTYPE html>
                 style: { 'display': 'none' }
             }
         ],
-        layout: { name: 'cose', animate: false, nodeRepulsion: 8000, idealEdgeLength: 120, edgeElasticity: 100, gravity: 0.25, numIter: 500 },
+        layout: layoutConfig,
         wheelSensitivity: 0.3,
         minZoom: 0.05,
         maxZoom: 5
     });
 
     function runLayout() {
-        cy.layout({ name: 'cose', animate: true, animationDuration: 800, nodeRepulsion: 8000, idealEdgeLength: 120, edgeElasticity: 100, gravity: 0.25, numIter: 500 }).run();
+        cy.layout(Object.assign({}, layoutConfig, { animate: true, animationDuration: 800 })).run();
     }
 
     // Click to show detail panel
