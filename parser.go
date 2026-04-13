@@ -28,6 +28,9 @@ type ParseOptions struct {
 	Contributors bool
 	PRImpact     string // base ref for PR impact (e.g. "main")
 	Evolution    string // comma-separated git tags
+	Proto        bool
+	ServiceMap   bool
+	OtelTrace    string // path to OTLP JSON export file
 }
 
 // Parse loads Go packages from the target directory and builds the
@@ -132,6 +135,16 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	// Pass 4e: Docker/K8s infrastructure topology
 	if opts.InfraTopo {
 		ExtractInfraTopo(dir, graph)
+	}
+
+	// Pass 4f: Proto/gRPC contract graph
+	if opts.Proto {
+		ExtractProto(dir, graph)
+	}
+
+	// Pass 4g: OpenTelemetry trace overlay
+	if opts.OtelTrace != "" {
+		ExtractOtelTrace(opts.OtelTrace, graph)
 	}
 
 	// Pass 5: Runtime pattern detection

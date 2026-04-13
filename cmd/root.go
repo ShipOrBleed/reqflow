@@ -56,6 +56,9 @@ func Execute() {
 	contributors := flag.Bool("contributors", false, "Show contributor map per component")
 	prImpact := flag.String("pr-impact", "", "Visualize PR impact against a base ref (e.g. 'main')")
 	evolution := flag.String("evolution", "", "Architecture evolution timeline across git tags (comma-separated)")
+	proto := flag.Bool("proto", false, "Parse .proto files for gRPC service/RPC/message graph")
+	serviceMap := flag.Bool("service-map", false, "Detect cross-service edges during stitch")
+	otelTrace := flag.String("otel-trace", "", "Overlay OpenTelemetry trace data from OTLP JSON export")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: govis [flags] [packages]\n")
@@ -94,6 +97,9 @@ func Execute() {
 		Contributors: *contributors,
 		PRImpact:     *prImpact,
 		Evolution:    *evolution,
+		Proto:        *proto,
+		ServiceMap:   *serviceMap,
+		OtelTrace:    *otelTrace,
 	}
 
 	// ---- Full Audit Mode ----
@@ -109,7 +115,7 @@ func Execute() {
 
 	// ---- Stitch Mode ----
 	if *stitch != "" {
-		handleStitch(*stitch, *format, *out)
+		handleStitch(*stitch, *format, *out, *serviceMap)
 		return
 	}
 
@@ -227,7 +233,7 @@ func Execute() {
 	}
 }
 
-func handleStitch(filesStr, format, outPath string) {
+func handleStitch(filesStr, format, outPath string, withServiceMap bool) {
 	files := strings.Split(filesStr, ",")
 	var graphs []*structmap.Graph
 
@@ -245,7 +251,12 @@ func handleStitch(filesStr, format, outPath string) {
 		graphs = append(graphs, &g)
 	}
 
-	merged := structmap.Stitch(graphs)
+	var merged *structmap.Graph
+	if withServiceMap {
+		merged = structmap.StitchWithServiceMap(graphs)
+	} else {
+		merged = structmap.Stitch(graphs)
+	}
 	
 	// Print summary of merged graph
 	structmap.PrintSummary(merged, os.Stderr)
