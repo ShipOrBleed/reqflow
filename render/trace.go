@@ -105,8 +105,19 @@ func color(k reqflow.NodeKind) string {
 func renderTraceText(r *reqflow.TraceResult, w io.Writer) error {
 	if r.NotFound {
 		fmt.Fprintf(w, "\n%s✗ No handler found matching: %q%s\n\n", red, r.Route, reset)
-		fmt.Fprintf(w, "  Hint: run  govis -format json ./...  and search Meta[\"routes\"]\n")
+		fmt.Fprintf(w, "  Hint: run  reqflow -format json ./...  and search Meta[\"routes\"]\n")
 		fmt.Fprintf(w, "        to see all registered routes.\n\n")
+		return nil
+	}
+
+	// Multiple routes match this path — show options
+	if len(r.MultiMatch) > 0 {
+		fmt.Fprintf(w, "\n%sMultiple routes match %q:%s\n\n", bold, r.Route, reset)
+		for i, route := range r.MultiMatch {
+			fmt.Fprintf(w, "  %s%d.%s  %s\n", cyan, i+1, reset, route)
+		}
+		fmt.Fprintf(w, "\n%sRun with the full route:%s\n", gray, reset)
+		fmt.Fprintf(w, "  reqflow trace %q ./...\n\n", r.MultiMatch[0])
 		return nil
 	}
 
@@ -127,27 +138,48 @@ func renderTraceText(r *reqflow.TraceResult, w io.Writer) error {
 			fmt.Fprintf(w, "  %s│%s\n", gray, reset)
 		}
 
-		// Node header
-		fmt.Fprintf(w, "  %s[%s]%s  %s%s%s", c, icon, reset, bold, node.Name, reset)
-		fmt.Fprintf(w, "  %s%s · %s%s\n", gray, label, shortFile(node.File, node.Line), reset)
-
-		// Package
-		if node.Package != "" {
-			pkg := node.Package
-			parts := strings.Split(pkg, "/")
-			if len(parts) > 3 {
-				pkg = "…/" + strings.Join(parts[len(parts)-3:], "/")
+		// Node header — show method location if we know which method is called
+		file, line := node.File, node.Line
+		if node.Kind == reqflow.KindHandler {
+			if method := node.Meta["route_method:"+r.Route]; method != "" {
+				if mf := node.Meta["method_file:"+method]; mf != "" {
+					file = mf
+				}
+				if ml := node.Meta["method_line:"+method]; ml != "" {
+					fmt.Sscanf(ml, "%d", &line)
+				}
 			}
-			fmt.Fprintf(w, "       %s%s%s\n", gray, pkg, reset)
+		} else if calledMethods, ok := r.CalledMethods[node.ID]; ok && len(calledMethods) == 1 {
+			method := calledMethods[0]
+			if mf := node.Meta["method_file:"+method]; mf != "" {
+				file = mf
+			}
+			if ml := node.Meta["method_line:"+method]; ml != "" {
+				fmt.Sscanf(ml, "%d", &line)
+			}
 		}
 
-		// Methods
-		if len(node.Methods) > 0 {
+		fmt.Fprintf(w, "  %s[%s]%s  %s%s%s", c, icon, reset, bold, node.Name, reset)
+		fmt.Fprintf(w, "  %s%s · %s%s\n", gray, label, pkgFile(node.Package, file, line), reset)
+
+		// Show the methods relevant to this trace + what they call
+		if node.Kind == reqflow.KindHandler {
+			if method, ok := node.Meta["route_method:"+r.Route]; ok && method != "" {
+				fmt.Fprintf(w, "       %s%s()%s\n", cyan, method, reset)
+				renderSubCalls(w, node.ID, method, r)
+			}
+		} else if calledMethods, ok := r.CalledMethods[node.ID]; ok && len(calledMethods) > 0 {
+			for _, m := range calledMethods {
+				fmt.Fprintf(w, "       %s%s()%s\n", cyan, m, reset)
+				renderSubCalls(w, node.ID, m, r)
+			}
+		} else if len(node.Methods) > 0 {
+			// Fallback: show all methods if we couldn't resolve the specific ones
 			methods := node.Methods
 			if len(methods) > 6 {
 				methods = append(methods[:6], fmt.Sprintf("+%d more", len(node.Methods)-6))
 			}
-			fmt.Fprintf(w, "       Methods: %s%s%s\n", cyan, strings.Join(methods, "(), ")+fmt.Sprintf("()"), reset)
+			fmt.Fprintf(w, "       Methods: %s%s%s\n", cyan, strings.Join(methods, "(), ")+"()", reset)
 		}
 
 		// Fields for models
@@ -163,17 +195,6 @@ func renderTraceText(r *reqflow.TraceResult, w io.Writer) error {
 			}
 			if len(fields) > 0 {
 				fmt.Fprintf(w, "       Fields:  %s%s%s\n", gray, strings.Join(fields, ", "), reset)
-			}
-		}
-
-		// Route for handler
-		if node.Kind == reqflow.KindHandler {
-			routes := routeList(node)
-			if len(routes) > 1 {
-				fmt.Fprintf(w, "       All routes (%d): %s%s%s\n", len(routes), gray, strings.Join(routes[:min(3, len(routes))], ", "), reset)
-				if len(routes) > 3 {
-					fmt.Fprintf(w, "                       %s…%s\n", gray, reset)
-				}
 			}
 		}
 
@@ -200,10 +221,47 @@ func renderTraceText(r *reqflow.TraceResult, w io.Writer) error {
 
 	if len(r.Chain) <= 1 {
 		fmt.Fprintf(w, "  %sNote: Only the handler was found. Dependencies may use patterns%s\n", gray, reset)
-		fmt.Fprintf(w, "  %s      not yet detected by GoVis (interface injection, closures).%s\n\n", gray, reset)
+		fmt.Fprintf(w, "  %s      not yet detected by reqflow (interface injection, closures).%s\n\n", gray, reset)
 	}
 
 	return nil
+}
+
+// renderSubCalls shows what a specific method calls (e.g. → svc.GetBudgets(), → store.Insert())
+func renderSubCalls(w io.Writer, nodeID, method string, r *reqflow.TraceResult) {
+	if r.MethodCalls == nil {
+		return
+	}
+	key := nodeID + "." + method
+	calls := r.MethodCalls[key]
+	if len(calls) == 0 {
+		return
+	}
+	for _, call := range calls {
+		fmt.Fprintf(w, "         %s→ %s.%s()%s\n", gray, call.FieldName, call.TargetMethod, reset)
+	}
+}
+
+// pkgFile shows "package/file.go:line" — e.g. "handler/handler.go:692"
+func pkgFile(pkg, file string, line int) string {
+	if file == "" {
+		return ""
+	}
+	// Extract last 2-3 path segments from the package for context
+	shortPkg := pkg
+	parts := strings.Split(pkg, "/")
+	if len(parts) > 2 {
+		shortPkg = strings.Join(parts[len(parts)-2:], "/")
+	}
+
+	// Get just the filename
+	fileParts := strings.Split(file, "/")
+	fileName := fileParts[len(fileParts)-1]
+
+	if line > 0 {
+		return fmt.Sprintf("%s/%s:%d", shortPkg, fileName, line)
+	}
+	return fmt.Sprintf("%s/%s", shortPkg, fileName)
 }
 
 func shortFile(file string, line int) string {
@@ -247,7 +305,7 @@ func renderTraceHTML(r *reqflow.TraceResult, w io.Writer) error {
 	if r.NotFound {
 		fmt.Fprintf(w, `<!DOCTYPE html><html><body style="font-family:monospace;padding:40px">
 <h2 style="color:#f87171">✗ No handler found matching %q</h2>
-<p>Run <code>govis -format json ./...</code> and search Meta["routes"] to see all registered routes.</p>
+<p>Run <code>reqflow -format json ./...</code> and search Meta["routes"] to see all registered routes.</p>
 </body></html>`, r.Route)
 		return nil
 	}
@@ -404,8 +462,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .extra-section h4{font-size:.75rem;font-weight:700;margin-bottom:10px;color:#9ca3af}
 .table-badge{display:inline-block;background:#292524;border:1px solid #57534e;padding:4px 12px;border-radius:6px;font-size:.75rem;font-family:monospace;color:#fbbf24;margin-right:8px;margin-bottom:6px}
 .env-badge{display:inline-block;background:#172554;border:1px solid #1e3a8a;padding:4px 12px;border-radius:6px;font-size:.75rem;font-family:monospace;color:#93c5fd;margin-right:8px;margin-bottom:6px}
-.govis-link{margin-top:48px;text-align:right;font-size:.65rem;color:#374151}
-.govis-link a{color:#374151;text-decoration:none}
+.reqflow-link{margin-top:48px;text-align:right;font-size:.65rem;color:#374151}
+.reqflow-link a{color:#374151;text-decoration:none}
 </style>
 </head>
 <body>
@@ -417,7 +475,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 %s
 %s
-<div class="govis-link"><a href="https://github.com/thzgajendra/reqflow">govis</a></div>
+<div class="reqflow-link"><a href="https://github.com/thzgajendra/reqflow">reqflow</a></div>
 </div>
 </body>
 </html>`

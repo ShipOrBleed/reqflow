@@ -498,6 +498,196 @@ thresholds:
 	}
 }
 
+// ==================== shouldIgnorePackage ====================
+
+func TestShouldIgnorePackage(t *testing.T) {
+	cases := []struct {
+		pkgPath  string
+		patterns []string
+		want     bool
+	}{
+		{"github.com/acme/app/vendor/lib", []string{"vendor"}, true},
+		{"github.com/acme/app/internal/service", []string{"vendor"}, false},
+		{"github.com/acme/app/mock_store", []string{"mock", "vendor"}, true},
+		{"github.com/acme/app/store", []string{"mock", "vendor"}, false},
+		{"anything", []string{}, false},
+	}
+	for _, tc := range cases {
+		got := shouldIgnorePackage(tc.pkgPath, tc.patterns)
+		if got != tc.want {
+			t.Errorf("shouldIgnorePackage(%q, %v) = %v, want %v", tc.pkgPath, tc.patterns, got, tc.want)
+		}
+	}
+}
+
+func TestShouldIgnorePackage_EmptyPatterns(t *testing.T) {
+	if shouldIgnorePackage("github.com/acme/app", nil) {
+		t.Error("Expected false for nil patterns")
+	}
+}
+
+// ==================== DB Client Detection (structural store) ====================
+
+func TestParseDBFieldPromotesToStore(t *testing.T) {
+	dir := helperWriteModule(t, map[string]string{
+		"store.go": `package testmod
+
+import "database/sql"
+
+type UserRepo struct {
+	db *sql.DB
+}
+`,
+	})
+	defer os.RemoveAll(dir)
+
+	graph := helperParse(t, dir, ParseOptions{})
+
+	node, ok := graph.Nodes["testmod.UserRepo"]
+	if !ok {
+		t.Fatal("Expected UserRepo node")
+	}
+	if node.Kind != KindStore {
+		t.Errorf("UserRepo with *sql.DB field should be KindStore, got %s", node.Kind)
+	}
+}
+
+func TestParseGormDBPromotesToStore(t *testing.T) {
+	dir := helperWriteModule(t, map[string]string{
+		"go.mod": "module testmod\n\ngo 1.22\n\nrequire gorm.io/gorm v1.23.0\n",
+		"store.go": `package testmod
+
+type ProductRepository struct {
+	db interface{ Find(dest interface{}, conds ...interface{}) interface{} }
+}
+`,
+	})
+	defer os.RemoveAll(dir)
+
+	graph := helperParse(t, dir, ParseOptions{})
+
+	// ProductRepository matches store keyword "Repository"
+	node, ok := graph.Nodes["testmod.ProductRepository"]
+	if !ok {
+		t.Fatal("Expected ProductRepository node")
+	}
+	if node.Kind != KindStore {
+		t.Errorf("ProductRepository should be KindStore, got %s", node.Kind)
+	}
+}
+
+// ==================== GoFr framework handler detection ====================
+
+func TestParseGoFrHandlerDetected(t *testing.T) {
+	dir := helperWriteModule(t, map[string]string{
+		"internal/handler/handler.go": `package handler
+
+// Simulate gofr.Context as a local type for testing
+type Context struct{}
+
+type UserHandler struct{}
+
+func (h *UserHandler) GetUser(ctx *Context) (interface{}, error) {
+	return nil, nil
+}
+`,
+		"router/router.go": `package router
+
+type App struct{}
+func (a *App) GET(path string, handler interface{}) {}
+`,
+		"main.go": `package main
+
+import (
+	"testmod/internal/handler"
+	"testmod/router"
+)
+
+func main() {
+	app := &router.App{}
+	h := &handler.UserHandler{}
+	app.GET("/users", h.GetUser)
+}
+`,
+	})
+	defer os.RemoveAll(dir)
+
+	graph := helperParse(t, dir, ParseOptions{})
+
+	r := Trace("/users", graph)
+	if r.NotFound {
+		t.Fatal("Expected /users to be found")
+	}
+	if r.Chain[0].Kind != KindHandler {
+		t.Errorf("Expected KindHandler, got %s", r.Chain[0].Kind)
+	}
+}
+
+// ==================== Stitch with Service Map ====================
+
+func TestStitchWithServiceMap_NoEdges(t *testing.T) {
+	// Two services with no cross-service patterns — result is just merged graph
+	g1 := NewGraph()
+	g1.AddNode(&Node{ID: "svc1.Handler", Kind: KindHandler, Name: "Handler", Package: "svc1",
+		Meta: map[string]string{"route": "GET /users"}})
+
+	g2 := NewGraph()
+	g2.AddNode(&Node{ID: "svc2.Store", Kind: KindStore, Name: "Store", Package: "svc2"})
+
+	merged := StitchWithServiceMap([]*Graph{g1, g2})
+	if len(merged.Nodes) != 2 {
+		t.Errorf("Expected 2 nodes, got %d", len(merged.Nodes))
+	}
+}
+
+func TestStitchWithServiceMap_HTTPClientEdge(t *testing.T) {
+	// svc2 has an HTTP client calling svc1's route → should create EdgeRPC
+	g1 := NewGraph()
+	g1.AddNode(&Node{ID: "svc1.Handler", Kind: KindHandler, Name: "Handler", Package: "svc1",
+		Meta: map[string]string{"route": "GET /orders"}})
+
+	g2 := NewGraph()
+	g2.AddNode(&Node{ID: "svc2.Client", Kind: KindService, Name: "Client", Package: "svc2",
+		Meta: map[string]string{"http_client_url": "http://orders-svc/orders"}})
+
+	merged := StitchWithServiceMap([]*Graph{g1, g2})
+
+	hasRPC := false
+	for _, edge := range merged.Edges {
+		if edge.Kind == EdgeRPC {
+			hasRPC = true
+			break
+		}
+	}
+	if !hasRPC {
+		t.Error("Expected EdgeRPC cross-service edge from HTTP client to handler")
+	}
+}
+
+func TestStitchMergesDuplicateNodeMeta(t *testing.T) {
+	// Same node ID in two graphs — meta should be merged
+	g1 := NewGraph()
+	g1.AddNode(&Node{ID: "shared.Svc", Kind: KindService, Name: "Svc", Package: "shared",
+		Meta: map[string]string{"from_g1": "yes"}})
+
+	g2 := NewGraph()
+	g2.AddNode(&Node{ID: "shared.Svc", Kind: KindService, Name: "Svc", Package: "shared",
+		Meta: map[string]string{"from_g2": "yes"}})
+
+	merged := Stitch([]*Graph{g1, g2})
+
+	node := merged.Nodes["shared.Svc"]
+	if node == nil {
+		t.Fatal("Expected shared.Svc in merged graph")
+	}
+	if node.Meta["from_g1"] != "yes" {
+		t.Error("Expected from_g1 meta to be present")
+	}
+	if node.Meta["from_g2"] != "yes" {
+		t.Error("Expected from_g2 meta to be merged in")
+	}
+}
+
 // ==================== Focus ====================
 
 func TestApplyFocus(t *testing.T) {

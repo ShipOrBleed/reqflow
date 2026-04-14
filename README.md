@@ -11,7 +11,7 @@
 reqflow trace "POST /orders" ./...
 ```
 
-Shows you the complete path: handler → service → store → database table → external calls.
+Shows you the complete path: handler -> service -> store -> database table -> external calls.
 No instrumentation. No runtime. Just point it at your code.
 
 ---
@@ -36,73 +36,65 @@ Or download a binary from [Releases](https://github.com/thzgajendra/reqflow/rele
 
 ---
 
-## Trace a Request Path
+## Usage
 
 ```bash
 reqflow trace "POST /orders" ./...
-reqflow trace "/orders" ./...                      # path-only, any method
-reqflow trace -format html -out trace.html "orders" # partial match, HTML output
+reqflow trace "/orders" ./...                        # path-only, any method
+reqflow trace -format html -out trace.html "orders"  # partial match, HTML output
+reqflow trace -tablemap "GET /users/{id}" ./...      # include database table mappings
+reqflow trace -envmap "POST /orders" ./...            # include environment variable reads
 ```
 
-**Example output:**
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `-format text` | Terminal output (default) |
+| `-format html` | Self-contained HTML page |
+| `-out <file>` | Write output to a file instead of stdout |
+| `-tablemap` | Resolve model-to-database table mappings |
+| `-envmap` | Resolve environment variable reads |
+
+### Example output
 
 ```
 POST /orders
-────────────
+--------------
 
-  [H]  OrderHandler          HTTP Handler · handler/orders.go:45
-       …/internal/handler
-       Methods: CreateOrder(), GetOrder(), ListOrders()
+  [H]  OrderHandler          HTTP Handler . handler/orders.go:45
+       CreateOrder()
 
-  │
-  ↓  delegates to
-  │
-  [S]  OrderService          Service · service/orders.go:23
-       …/internal/service
-       Methods: Create(), FindByID(), List(), Cancel()
+  |
+  v  delegates to
+  |
+  [S]  OrderService          Service . service/orders.go:23
+       Create()
 
-  │
-  ↓  queries via
-  │
-  [D]  OrderStore            Store / Repository · store/orders.go:67
-       …/internal/store
-       Methods: Insert(), Select(), Update(), Delete()
+  |
+  v  queries via
+  |
+  [D]  OrderStore            Store / Repository . store/orders.go:67
+       Insert()
 
-  │
-  ↓  maps to model
-  │
-  [M]  Order                 Data Model · model/order.go:12
-       …/internal/model
+  |
+  v  maps to model
+  |
+  [M]  Order                 Data Model . model/order.go:12
        Fields: ID, CustomerID, Status, Total, CreatedAt
 
-  ┌─ Database tables
-  │   orders
-  └─
+  +- Database tables
+  |   orders
+  +-
 ```
-
----
-
-## Interactive Explorer
-
-For a full visual overview of your codebase:
-
-```bash
-reqflow -format interactive -out explorer.html ./...
-open explorer.html
-```
-
-Three tabs:
-- **Explore APIs** (default) — every HTTP endpoint, click any to trace its flow step-by-step
-- **Architecture** — layered view: Handlers → Services → Stores → Models
-- **Packages** — browse by Go package
 
 ---
 
 ## How It Works
 
-reqflow uses Go's type system — not grep, not regexes. It loads your packages with `golang.org/x/tools/go/packages`, walks the AST, and:
+reqflow uses Go's type system -- not grep, not regexes. It loads your packages with `golang.org/x/tools/go/packages`, walks the AST, and:
 
-1. **Classifies types structurally** — a store is any struct holding a `*sql.DB` (not one named `*Store`); a handler is any struct whose methods accept a framework context
+1. **Classifies types structurally** -- a store is any struct holding a `*sql.DB` (not one named `*Store`); a handler is any struct whose methods accept a framework context
 2. **Builds dependency edges** from struct fields and constructor parameters
 3. **Extracts route registrations** from `app.GET("/path", h.Handler)` calls
 4. **Traces the path** from the matched handler through all reachable dependencies, ordered by architectural layer
@@ -121,13 +113,13 @@ Works offline, in CI, on codebases you've never seen before.
 | [Fiber](https://gofiber.io) | `func(c *fiber.Ctx) error` |
 | net/http | `func(w http.ResponseWriter, r *http.Request)` |
 
-Store detection: `*sql.DB`, `*sqlx.DB`, `*gorm.DB`, `*mongo.Client`, `*redis.Client`, `*pgxpool.Pool`, and more — from struct field types, not naming conventions.
+Store detection: `*sql.DB`, `*sqlx.DB`, `*gorm.DB`, `*mongo.Client`, `*redis.Client`, `*pgxpool.Pool`, and more -- from struct field types, not naming conventions.
 
 ---
 
 ## Configuration
 
-Create `.reqflow.yml` in your project root:
+Create `.reqflow.yml` in your project root to customize layer detection:
 
 ```yaml
 parser:
@@ -135,26 +127,15 @@ parser:
     - vendor
     - _test
 
-layers:
-  service_pattern: ".*Service$"
-  store_pattern:   ".*Store$|.*Repository$|.*Repo$"
-  model_pattern:   ".*Model$|.*Entity$"
+  # Override automatic layer detection with explicit regex patterns:
+  # domain_naming:
+  #   service_match: ".*Service$"
+  #   store_match:   ".*Store$|.*Repository$|.*Repo$"
+  #   model_match:   ".*Model$|.*Entity$"
 ```
-
-Generate a starter config:
-
-```bash
-reqflow init
-```
-
----
-
-## More Features
-
-For output formats (Mermaid, C4, DOT, Excalidraw, 3D), multi-repo stitching, git churn analysis, OpenTelemetry overlay, and more — see [ADVANCED.md](ADVANCED.md).
 
 ---
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+Apache 2.0 -- see [LICENSE](LICENSE)

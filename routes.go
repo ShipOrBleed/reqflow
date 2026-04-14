@@ -53,6 +53,7 @@ func extractRoutes(pkgs []*packages.Package, graph *Graph) {
 // It handles patterns like:
 //   - h.MethodName  (method on a struct — most common in GoFr/Echo/Gin)
 //   - handlerFunc   (standalone function)
+//   - func(ctx *gofr.Context) { ... }  (inline anonymous function)
 func tagHandlerWithRoute(expr ast.Expr, pkg *packages.Package, graph *Graph, httpMethod, pathStr string) {
 	route := fmt.Sprintf("%s %s", httpMethod, pathStr)
 
@@ -64,6 +65,8 @@ func tagHandlerWithRoute(expr ast.Expr, pkg *packages.Package, graph *Graph, htt
 				cleanType := strings.TrimLeft(typObj.String(), "*")
 				if node, exists := graph.Nodes[cleanType]; exists {
 					addRoute(node, route)
+					// Store which specific method handles this route
+					node.Meta["route_method:"+route] = e.Sel.Name
 				}
 			}
 		}
@@ -75,6 +78,29 @@ func tagHandlerWithRoute(expr ast.Expr, pkg *packages.Package, graph *Graph, htt
 				addRoute(node, route)
 			}
 		}
+	case *ast.FuncLit:
+		// Pattern: inline anonymous function, e.g. app.GET("/path", func(ctx *gofr.Context) ...)
+		// Create a synthetic handler node for it.
+		nodeID := pkg.PkgPath + ".inline:" + httpMethod + ":" + pathStr
+		if _, exists := graph.Nodes[nodeID]; !exists {
+			// Derive a readable name from the path: GET /api/status → GET_api_status
+			cleanPath := strings.ReplaceAll(strings.Trim(pathStr, "/"), "/", "_")
+			cleanPath = strings.ReplaceAll(cleanPath, "{", "")
+			cleanPath = strings.ReplaceAll(cleanPath, "}", "")
+			if cleanPath == "" {
+				cleanPath = "root"
+			}
+			nodeName := httpMethod + "_" + cleanPath
+			node := &Node{
+				ID:      nodeID,
+				Kind:    KindHandler,
+				Name:    nodeName,
+				Package: pkg.PkgPath,
+				Meta:    map[string]string{},
+			}
+			graph.AddNode(node)
+		}
+		addRoute(graph.Nodes[nodeID], route)
 	}
 }
 

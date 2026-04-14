@@ -1,18 +1,30 @@
-// Package govis provides architecture visualization and static analysis for Go
+// Package reqflow provides architecture visualization and static analysis for Go
 // codebases. It parses Go ASTs to build dependency graphs, detect architectural
-// patterns (handlers, services, stores, models), and render interactive
-// visualizations in multiple formats.
+// patterns (handlers, services, stores, models), and render trace output.
 //
 // Install the CLI:
 //
-//	go install github.com/thzgajendra/reqflow/cmd/govis@latest
+//	go install github.com/thzgajendra/reqflow/cmd/reqflow@latest
 //
 // Use as a library:
 //
 //	graph, err := reqflow.Parse(reqflow.ParseOptions{Dir: "."})
-//	renderer := &render.InteractiveRenderer{}
-//	renderer.Render(graph, os.Stdout)
+//	result := reqflow.Trace("GET /users", graph)
 package reqflow
+
+import (
+	"fmt"
+	"os"
+)
+
+// Version is set at build time via ldflags.
+var Version = "dev"
+
+// Warn prints a warning message to stderr. Used by analysis functions
+// that encounter non-fatal errors (e.g., git not available, file not found).
+func Warn(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "  ⚠ "+format+"\n", args...)
+}
 
 // NodeKind classifies a graph node into an architectural layer.
 type NodeKind string
@@ -82,10 +94,11 @@ type Edge struct {
 // Graph is the core data structure representing the architecture of a Go codebase.
 // It contains nodes (components), edges (relationships), and clusters (package groupings).
 type Graph struct {
-	Nodes    map[string]*Node
-	Edges    []Edge
-	Clusters map[string][]string // pkg path → []node IDs
-	Meta     map[string]string   // graph-level metadata (repo name, commit SHA, etc.)
+	Nodes       map[string]*Node
+	Edges       []Edge
+	Clusters    map[string][]string // pkg path → []node IDs
+	Meta        map[string]string   // graph-level metadata (repo name, commit SHA, etc.)
+	MethodCalls MethodCallIndex     // method-level call index for trace precision
 }
 
 // NewGraph creates an empty, initialized Graph ready for use.

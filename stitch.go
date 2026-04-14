@@ -6,7 +6,7 @@ import (
 )
 
 // Stitch merges multiple graphs into one. Useful for microservice architectures
-// where each service has its own govis export.
+// where each service has its own reqflow export.
 func Stitch(graphs []*Graph) *Graph {
 	base := NewGraph()
 

@@ -11,28 +11,14 @@ import (
 )
 
 // ParseOptions configures the Parse function. Dir is the Go module directory
-// to analyze. Boolean flags enable optional analysis passes (call graph,
-// data flow, env map, etc.).
+// to analyze. Boolean flags enable optional analysis passes.
 type ParseOptions struct {
-	Dir        string
-	Filter     string
-	Focus      string
-	Config     *ReqflowConfig
-	APIMap     bool
-	Heatmap    bool
-	CallGraph  bool
-	DataFlow   bool
-	EnvMap       bool
-	TableMap     bool
-	DepTree      bool
-	InfraTopo    bool
-	Churn        bool
-	Contributors bool
-	PRImpact     string // base ref for PR impact (e.g. "main")
-	Evolution    string // comma-separated git tags
-	Proto        bool
-	ServiceMap   bool
-	OtelTrace    string // path to OTLP JSON export file
+	Dir      string
+	Filter   string
+	Focus    string
+	Config   *ReqflowConfig
+	EnvMap   bool
+	TableMap bool
 }
 
 // Parse loads Go packages from the target directory and builds the
@@ -43,10 +29,6 @@ func Parse(opts ParseOptions) (*Graph, error) {
 		packages.NeedTypes |
 		packages.NeedTypesInfo |
 		packages.NeedImports
-
-	if opts.CallGraph {
-		mode |= packages.NeedDeps
-	}
 
 	dir := opts.Dir
 	pattern := "./..."
@@ -91,32 +73,16 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	resolveInterfaces(pkgs, graph)
 	resolveDependencies(graph)
 
+	// Pass 2b: Build method-level call index for precise trace output
+	graph.MethodCalls = buildMethodCallIndex(pkgs, graph)
+
 	// Pass 3: Framework-level enrichments
 	extractRoutes(pkgs, graph)
 	extractEvents(pkgs, graph)
 	ExtractMiddleware(pkgs, graph)
 	ExtractGRPC(pkgs, graph)
 
-	// Pass 3b: API surface map (request/response type extraction)
-	if opts.APIMap {
-		ExtractAPIMap(pkgs, graph)
-	}
-
-	// Pass 3c: Call graph visualization
-	if opts.CallGraph {
-		modulePath := getModulePath(opts.Dir)
-		if modulePath != "" {
-			ExtractCallGraph(pkgs, graph, modulePath)
-		}
-	}
-
-	// Pass 3d: Data flow extraction
-	if opts.DataFlow {
-		ExtractDataFlows(graph)
-	}
-
 	// Pass 4: Infrastructure & external topology
-	parseVitessSchema(dir, graph)
 	ExtractGoModDeps(dir, graph)
 
 	// Pass 4b: Environment variable map
@@ -129,39 +95,8 @@ func Parse(opts ParseOptions) (*Graph, error) {
 		ExtractTableMap(pkgs, graph)
 	}
 
-	// Pass 4d: Full go.mod dependency tree
-	if opts.DepTree {
-		ExtractDepTree(dir, graph)
-	}
-
-	// Pass 4e: Docker/K8s infrastructure topology
-	if opts.InfraTopo {
-		ExtractInfraTopo(dir, graph)
-	}
-
-	// Pass 4f: Proto/gRPC contract graph
-	if opts.Proto {
-		ExtractProto(dir, graph)
-	}
-
-	// Pass 4g: OpenTelemetry trace overlay
-	if opts.OtelTrace != "" {
-		ExtractOtelTrace(opts.OtelTrace, graph)
-	}
-
 	// Pass 5: Runtime pattern detection
 	DetectConcurrency(pkgs, graph)
-
-	// Pass 5b: Git-based analysis
-	if opts.Churn {
-		ExtractChurn(dir, graph)
-	}
-	if opts.Contributors {
-		ExtractContributors(dir, graph)
-	}
-	if opts.PRImpact != "" {
-		ExtractPRImpact(dir, opts.PRImpact, graph)
-	}
 
 	// Pass 6: Scope filtering (always last)
 	if opts.Focus != "" {
@@ -310,6 +245,10 @@ func handleFuncDecl(fn *ast.FuncDecl, pkg *packages.Package, graph *Graph) {
 			id := fmt.Sprintf("%s.%s", pkg.PkgPath, ident.Name)
 			if node, ok := graph.Nodes[id]; ok {
 				node.Methods = append(node.Methods, fn.Name.Name)
+				// Store method location for precise trace output
+				pos := pkg.Fset.Position(fn.Pos())
+				node.Meta["method_file:"+fn.Name.Name] = pos.Filename
+				node.Meta["method_line:"+fn.Name.Name] = fmt.Sprintf("%d", pos.Line)
 				// Only promote to KindHandler if the struct hasn't already been
 				// classified as a service or store. In GoFr (and similar frameworks),
 				// service methods also accept *gofr.Context — we must not let that
@@ -457,25 +396,6 @@ func resolveDependencies(graph *Graph) {
 	}
 }
 
-// getModulePath extracts the module path from go.mod in the given directory.
-func getModulePath(dir string) string {
-	modDir := dir
-	if modDir == "./..." || modDir == "" {
-		modDir = "."
-	}
-	data, err := os.ReadFile(modDir + "/go.mod")
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module"))
-		}
-	}
-	return ""
-}
-
 var (
 	serviceKeywords = []string{"service", "usecase", "interactor", "manager", "orchestrator", "worker", "processor", "biz"}
 	storeKeywords   = []string{"repository", "repo", "store", "dao", "data", "gateway", "adapter", "persistence", "storage", "client"}
@@ -519,4 +439,52 @@ func matchLayer(name string, pkgPath string, keywords []string) bool {
 		}
 	}
 	return false
+}
+
+// ExtractGoModDeps parses go.mod to identify cloud/infra dependencies.
+func ExtractGoModDeps(dir string, graph *Graph) {
+	modPath := dir
+	if modPath == "./..." || modPath == "" {
+		modPath = "."
+	}
+
+	data, err := os.ReadFile(modPath + "/go.mod")
+	if err != nil {
+		return
+	}
+	content := string(data)
+
+	knownInfra := map[string]string{
+		"github.com/aws/aws-sdk-go":                  "AWS SDK",
+		"cloud.google.com/go":                        "GCP SDK",
+		"github.com/Azure/azure-sdk":                 "Azure SDK",
+		"github.com/go-redis/redis":                  "Redis",
+		"github.com/redis/go-redis":                  "Redis",
+		"github.com/segmentio/kafka-go":              "Kafka",
+		"github.com/confluentinc/confluent-kafka-go": "Kafka",
+		"github.com/streadway/amqp":                  "RabbitMQ",
+		"github.com/rabbitmq/amqp091-go":             "RabbitMQ",
+		"github.com/stripe/stripe-go":                "Stripe",
+		"github.com/elastic/go-elasticsearch":        "Elasticsearch",
+		"go.mongodb.org/mongo-driver":                "MongoDB",
+		"gorm.io/gorm":                               "GORM",
+		"github.com/jmoiron/sqlx":                    "sqlx",
+		"google.golang.org/grpc":                     "gRPC",
+		"google.golang.org/protobuf":                 "Protobuf",
+		"github.com/nats-io/nats.go":                 "NATS",
+	}
+
+	for dep, label := range knownInfra {
+		if strings.Contains(content, dep) {
+			infraID := "infra." + strings.ReplaceAll(dep, "/", "_")
+			if _, exists := graph.Nodes[infraID]; !exists {
+				graph.AddNode(&Node{
+					ID:      infraID,
+					Kind:    KindInfra,
+					Name:    label,
+					Package: "infrastructure",
+				})
+			}
+		}
+	}
 }
