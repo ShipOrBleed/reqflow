@@ -284,27 +284,6 @@ func shortFile(file string, line int) string {
 	return strings.Join(parts, "/")
 }
 
-func routeList(n *reqflow.Node) []string {
-	raw := n.Meta["routes"]
-	if raw == "" {
-		raw = n.Meta["route"]
-	}
-	var out []string
-	for _, r := range strings.Split(raw, "\n") {
-		if r = strings.TrimSpace(r); r != "" {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ─── HTML renderer ────────────────────────────────────────────────────────────
 
 func renderTraceHTML(r *reqflow.TraceResult, w io.Writer) error {

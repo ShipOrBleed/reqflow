@@ -181,6 +181,99 @@ func TestListRoutes_NilGraph(t *testing.T) {
 	}
 }
 
+func TestFormatRoutesText_WithRoutes(t *testing.T) {
+	routes := []RouteInfo{
+		{Method: "GET", Path: "/users", HandlerName: "Handler", MethodName: "GetUsers", File: "/app/handler.go", Line: 10},
+		{Method: "POST", Path: "/users", HandlerName: "Handler", MethodName: "CreateUser", File: "/app/handler.go", Line: 30},
+	}
+	output := FormatRoutesText(routes)
+
+	if !strings.Contains(output, "GET") || !strings.Contains(output, "/users") {
+		t.Error("Expected GET /users in output")
+	}
+	if !strings.Contains(output, "Handler.GetUsers()") {
+		t.Error("Expected Handler.GetUsers() in output")
+	}
+	if !strings.Contains(output, "Handler.CreateUser()") {
+		t.Error("Expected Handler.CreateUser() in output")
+	}
+	if !strings.Contains(output, "2 routes across 1 handlers") {
+		t.Error("Expected summary line")
+	}
+}
+
+func TestFormatRoutesText_MultipleHandlers(t *testing.T) {
+	routes := []RouteInfo{
+		{Method: "GET", Path: "/a", HandlerName: "HandlerA", MethodName: "Get"},
+		{Method: "GET", Path: "/b", HandlerName: "HandlerB", MethodName: "Get"},
+	}
+	output := FormatRoutesText(routes)
+
+	if !strings.Contains(output, "2 routes across 2 handlers") {
+		t.Errorf("Expected '2 routes across 2 handlers', got: %s", output)
+	}
+}
+
+func TestFormatRoutesJSON(t *testing.T) {
+	routes := []RouteInfo{
+		{Method: "GET", Path: "/users", HandlerName: "Handler", MethodName: "GetUsers", File: "/app/handler.go", Line: 10},
+	}
+	output := FormatRoutesJSON(routes)
+
+	if !strings.Contains(output, `"method":"GET"`) {
+		t.Error("Expected JSON with method field")
+	}
+	if !strings.Contains(output, `"path":"/users"`) {
+		t.Error("Expected JSON with path field")
+	}
+	if !strings.Contains(output, `"handler":"Handler"`) {
+		t.Error("Expected JSON with handler field")
+	}
+	if !strings.HasPrefix(output, "[") || !strings.Contains(output, "]") {
+		t.Error("Expected JSON array")
+	}
+}
+
+func TestFormatRoutesJSON_Empty(t *testing.T) {
+	output := FormatRoutesJSON(nil)
+	if !strings.HasPrefix(output, "[") {
+		t.Error("Expected JSON array even for empty")
+	}
+}
+
+func TestHandlerDisplay_WithMethod(t *testing.T) {
+	r := RouteInfo{HandlerName: "UserHandler", MethodName: "Get"}
+	if got := handlerDisplay(r); got != "UserHandler.Get()" {
+		t.Errorf("handlerDisplay = %q, want UserHandler.Get()", got)
+	}
+}
+
+func TestHandlerDisplay_WithoutMethod(t *testing.T) {
+	r := RouteInfo{HandlerName: "InlineHandler"}
+	if got := handlerDisplay(r); got != "InlineHandler()" {
+		t.Errorf("handlerDisplay = %q, want InlineHandler()", got)
+	}
+}
+
+func TestShortLocation(t *testing.T) {
+	cases := []struct {
+		file string
+		line int
+		want string
+	}{
+		{"/a/b/c/handler.go", 42, "c/handler.go:42"},
+		{"/handler.go", 10, "/handler.go:10"},
+		{"", 0, ""},
+		{"/a/b/c/d.go", 0, "c/d.go"},
+	}
+	for _, tc := range cases {
+		got := shortLocation(tc.file, tc.line)
+		if got != tc.want {
+			t.Errorf("shortLocation(%q, %d) = %q, want %q", tc.file, tc.line, got, tc.want)
+		}
+	}
+}
+
 func TestParseClientKind(t *testing.T) {
 	dir := helperWriteModule(t, map[string]string{
 		"client.go": `package testmod

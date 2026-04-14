@@ -97,3 +97,145 @@ func TestTraceRendererHTMLNotFound(t *testing.T) {
 		t.Error("Expected HTML even for not-found")
 	}
 }
+
+func TestTraceRendererText_WithCalledMethods(t *testing.T) {
+	result := &reqflow.TraceResult{
+		Route: "GET /items",
+		Handler: &reqflow.Node{ID: "h", Kind: reqflow.KindHandler, Name: "Handler", Package: "pkg",
+			Meta: map[string]string{"route_method:GET /items": "ListItems",
+				"method_file:ListItems": "/app/handler.go", "method_line:ListItems": "42"}},
+		Chain: []*reqflow.Node{
+			{ID: "h", Kind: reqflow.KindHandler, Name: "Handler", Package: "pkg",
+				Meta: map[string]string{"route_method:GET /items": "ListItems",
+					"method_file:ListItems": "/app/handler.go", "method_line:ListItems": "42"}},
+			{ID: "s", Kind: reqflow.KindService, Name: "Service", Package: "svc",
+				Methods: []string{"ListItems", "CreateItem"},
+				Meta:    map[string]string{}},
+		},
+		CalledMethods: map[string][]string{
+			"s": {"ListItems"},
+		},
+		MethodCalls: reqflow.MethodCallIndex{
+			"h.ListItems": {{FieldName: "svc", TargetMethod: "ListItems"}},
+		},
+	}
+
+	var buf bytes.Buffer
+	tr := &TraceRenderer{Format: "text"}
+	if err := tr.RenderTrace(result, &buf); err != nil {
+		t.Fatalf("Error: %v", err)
+	}
+	out := buf.String()
+
+	// Handler should show specific method, not all methods
+	if !strings.Contains(out, "ListItems()") {
+		t.Error("Expected ListItems() in output")
+	}
+	// Sub-call should be shown
+	if !strings.Contains(out, "svc.ListItems()") {
+		t.Error("Expected sub-call → svc.ListItems()")
+	}
+	// Method line should be used (42), not struct line
+	if !strings.Contains(out, ":42") {
+		t.Error("Expected method line number :42")
+	}
+}
+
+func TestTraceRendererText_WithClientKind(t *testing.T) {
+	result := &reqflow.TraceResult{
+		Route: "GET /data",
+		Handler: &reqflow.Node{ID: "h", Kind: reqflow.KindHandler, Name: "H", Package: "p",
+			Meta: map[string]string{}},
+		Chain: []*reqflow.Node{
+			{ID: "h", Kind: reqflow.KindHandler, Name: "H", Package: "p", Meta: map[string]string{}},
+			{ID: "c", Kind: reqflow.KindClient, Name: "APIClient", Package: "client", Meta: map[string]string{}},
+		},
+	}
+
+	var buf bytes.Buffer
+	tr := &TraceRenderer{Format: "text"}
+	tr.RenderTrace(result, &buf)
+	out := buf.String()
+
+	if !strings.Contains(out, "[C]") {
+		t.Error("Expected [C] badge for KindClient")
+	}
+	if !strings.Contains(out, "External Client") {
+		t.Error("Expected 'External Client' label for KindClient")
+	}
+}
+
+func TestTraceRendererText_MultiMatch(t *testing.T) {
+	result := &reqflow.TraceResult{
+		Route:      "/orders",
+		MultiMatch: []string{"GET /orders", "POST /orders", "DELETE /orders/{id}"},
+	}
+
+	var buf bytes.Buffer
+	tr := &TraceRenderer{Format: "text"}
+	tr.RenderTrace(result, &buf)
+	out := buf.String()
+
+	if !strings.Contains(out, "Multiple routes") {
+		t.Error("Expected 'Multiple routes' in multi-match output")
+	}
+	if !strings.Contains(out, "1.") || !strings.Contains(out, "2.") || !strings.Contains(out, "3.") {
+		t.Error("Expected numbered list")
+	}
+}
+
+func TestTraceRendererHTML_WithTables(t *testing.T) {
+	result := &reqflow.TraceResult{
+		Route: "GET /orders",
+		Handler: &reqflow.Node{ID: "h", Kind: reqflow.KindHandler, Name: "H", Package: "p",
+			Meta: map[string]string{}},
+		Chain: []*reqflow.Node{
+			{ID: "h", Kind: reqflow.KindHandler, Name: "H", Package: "p", Meta: map[string]string{}},
+		},
+		Tables:  []string{"orders", "order_items"},
+		EnvVars: []string{"DB_HOST"},
+	}
+
+	var buf bytes.Buffer
+	tr := &TraceRenderer{Format: "html"}
+	tr.RenderTrace(result, &buf)
+	out := buf.String()
+
+	if !strings.Contains(out, "orders") {
+		t.Error("Expected table name in HTML")
+	}
+	if !strings.Contains(out, "DB_HOST") {
+		t.Error("Expected env var in HTML")
+	}
+}
+
+func TestTraceRendererText_TablesAndEnvVars(t *testing.T) {
+	result := &reqflow.TraceResult{
+		Route: "GET /orders",
+		Handler: &reqflow.Node{ID: "h", Kind: reqflow.KindHandler, Name: "H", Package: "p",
+			Meta: map[string]string{}},
+		Chain: []*reqflow.Node{
+			{ID: "h", Kind: reqflow.KindHandler, Name: "H", Package: "p", Meta: map[string]string{}},
+		},
+		Tables:  []string{"orders"},
+		EnvVars: []string{"DB_URL", "REDIS_HOST"},
+	}
+
+	var buf bytes.Buffer
+	tr := &TraceRenderer{Format: "text"}
+	tr.RenderTrace(result, &buf)
+	out := buf.String()
+
+	if !strings.Contains(out, "Database tables") {
+		t.Error("Expected 'Database tables' section")
+	}
+	if !strings.Contains(out, "orders") {
+		t.Error("Expected 'orders' table")
+	}
+	if !strings.Contains(out, "Environment variables") {
+		t.Error("Expected 'Environment variables' section")
+	}
+	if !strings.Contains(out, "DB_URL") || !strings.Contains(out, "REDIS_HOST") {
+		t.Error("Expected env vars in output")
+	}
+}

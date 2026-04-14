@@ -68,6 +68,22 @@ func TestEdgeLabel_ToGRPC(t *testing.T) {
 	}
 }
 
+func TestEdgeLabel_ToClient(t *testing.T) {
+	from := &Node{Kind: KindService}
+	to := &Node{Kind: KindClient}
+	if got := EdgeLabel(from, to); got != "calls client" {
+		t.Errorf("EdgeLabel(→client) = %q, want %q", got, "calls client")
+	}
+}
+
+func TestEdgeLabel_FromClient(t *testing.T) {
+	from := &Node{Kind: KindClient}
+	to := &Node{Kind: KindStore}
+	if got := EdgeLabel(from, to); got != "calls external" {
+		t.Errorf("EdgeLabel(client→) = %q, want %q", got, "calls external")
+	}
+}
+
 func TestEdgeLabel_Default(t *testing.T) {
 	from := &Node{Kind: KindStruct}
 	to := &Node{Kind: KindStruct}
