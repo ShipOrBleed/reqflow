@@ -42,6 +42,9 @@ var layerRank = map[NodeKind]int{
 //   - partial: "orders" (substring match against all registered routes)
 func Trace(route string, g *Graph) *TraceResult {
 	route = strings.TrimSpace(route)
+	if route == "" {
+		return &TraceResult{Route: route, NotFound: true}
+	}
 
 	// Check if the query has an HTTP method prefix
 	hasMethod := false
