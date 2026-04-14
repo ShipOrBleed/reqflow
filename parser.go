@@ -15,7 +15,6 @@ import (
 type ParseOptions struct {
 	Dir      string
 	Filter   string
-	Focus    string
 	Config   *ReqflowConfig
 	EnvMap   bool
 	TableMap bool
@@ -93,14 +92,6 @@ func Parse(opts ParseOptions) (*Graph, error) {
 	// Pass 4c: Model-to-table mapping
 	if opts.TableMap {
 		ExtractTableMap(pkgs, graph)
-	}
-
-	// Pass 5: Runtime pattern detection
-	DetectConcurrency(pkgs, graph)
-
-	// Pass 6: Scope filtering (always last)
-	if opts.Focus != "" {
-		applyFocus(graph, opts.Focus)
 	}
 
 	return graph, nil
