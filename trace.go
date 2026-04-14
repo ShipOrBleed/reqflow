@@ -27,9 +27,10 @@ var layerRank = map[NodeKind]int{
 	KindInterface:  4,
 	KindEvent:      5,
 	KindStore:      6,
-	KindInfra:      7,
-	KindModel:      8,
-	KindTable:      9,
+	KindClient:     7,
+	KindInfra:      8,
+	KindModel:      9,
+	KindTable:      10,
 }
 
 // Trace finds the handler matching route and returns the complete
@@ -611,6 +612,10 @@ func EdgeLabel(from, to *Node) string {
 		return "publishes event"
 	case to.Kind == KindGRPC:
 		return "calls gRPC"
+	case to.Kind == KindClient:
+		return "calls client"
+	case from.Kind == KindClient:
+		return "calls external"
 	default:
 		return "→"
 	}

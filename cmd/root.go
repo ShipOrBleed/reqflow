@@ -19,6 +19,9 @@ func Execute() {
 		case "trace":
 			runTrace(os.Args[2:])
 			return
+		case "routes":
+			runRoutes(os.Args[2:])
+			return
 		}
 	}
 
@@ -26,11 +29,70 @@ func Execute() {
 	fmt.Fprintf(os.Stderr, "Usage: reqflow <command> [flags] [packages]\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	fmt.Fprintf(os.Stderr, "  trace    Trace a request path through your Go codebase\n")
+	fmt.Fprintf(os.Stderr, "  routes   List all registered routes in a service\n")
 	fmt.Fprintf(os.Stderr, "  version  Show version\n")
 	fmt.Fprintf(os.Stderr, "\nExamples:\n")
 	fmt.Fprintf(os.Stderr, "  reqflow trace \"/orders\" ./...\n")
 	fmt.Fprintf(os.Stderr, "  reqflow trace \"GET /orders\" ./...\n")
 	fmt.Fprintf(os.Stderr, "  reqflow trace -format html -out trace.html \"POST /orders\" ./...\n")
+	fmt.Fprintf(os.Stderr, "  reqflow routes ./...\n")
+}
+
+// runRoutes implements the `reqflow routes [dir]` subcommand.
+func runRoutes(args []string) {
+	fs := flag.NewFlagSet("routes", flag.ExitOnError)
+	outPath := fs.String("out", "", "Output file (default: stdout)")
+	format := fs.String("format", "text", "Output format: text, json")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: reqflow routes [flags] [packages]\n\n")
+		fmt.Fprintf(os.Stderr, "List all registered routes in a service.\n\n")
+		fmt.Fprintf(os.Stderr, "Examples:\n")
+		fmt.Fprintf(os.Stderr, "  reqflow routes ./...\n")
+		fmt.Fprintf(os.Stderr, "  reqflow routes -format json -out routes.json ./...\n\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+
+	dir := "./..."
+	if fs.NArg() >= 1 {
+		dir = fs.Arg(0)
+	}
+
+	opts := reqflow.ParseOptions{Dir: dir}
+
+	fmt.Fprintf(os.Stderr, "Analyzing %s...\n", dir)
+	graph, err := reqflow.Parse(opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
+		os.Exit(1)
+	}
+
+	routes := reqflow.ListRoutes(graph)
+
+	var output string
+	switch *format {
+	case "json":
+		output = reqflow.FormatRoutesJSON(routes)
+	default:
+		output = reqflow.FormatRoutesText(routes)
+	}
+
+	w := os.Stdout
+	if *outPath != "" {
+		f, err := os.Create(*outPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		w = f
+	}
+
+	fmt.Fprint(w, output)
 }
 
 // runTrace implements the `reqflow trace <route> [dir]` subcommand.

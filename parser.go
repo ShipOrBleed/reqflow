@@ -133,6 +133,7 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 		node.Kind = KindStruct
 
 		isService := matchLayer(t.Name.Name, pkg.PkgPath, serviceKeywords)
+		isClient := matchLayer(t.Name.Name, pkg.PkgPath, clientKeywords)
 		isStore := matchLayer(t.Name.Name, pkg.PkgPath, storeKeywords)
 		isModel := matchLayer(t.Name.Name, pkg.PkgPath, modelKeywords)
 		isHandler := matchLayer(t.Name.Name, pkg.PkgPath, handlerKeywords)
@@ -149,7 +150,9 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 			}
 		}
 
-		if isStore {
+		if isClient {
+			node.Kind = KindClient
+		} else if isStore {
 			node.Kind = KindStore
 		} else if isService {
 			node.Kind = KindService
@@ -200,7 +203,9 @@ func handleTypeSpec(t *ast.TypeSpec, pkg *packages.Package, graph *Graph, opts P
 
 	case *ast.InterfaceType:
 		node.Kind = KindInterface
-		if matchLayer(t.Name.Name, pkg.PkgPath, storeKeywords) {
+		if matchLayer(t.Name.Name, pkg.PkgPath, clientKeywords) {
+			node.Kind = KindClient
+		} else if matchLayer(t.Name.Name, pkg.PkgPath, storeKeywords) {
 			node.Kind = KindStore
 		} else if matchLayer(t.Name.Name, pkg.PkgPath, serviceKeywords) {
 			node.Kind = KindService
@@ -372,7 +377,7 @@ func resolveDependencies(graph *Graph) {
 		// This handles patterns like:  svc service.Service  or  store *UserStore
 		// which are the most common ways Go layers wire together.
 		if n.Kind == KindHandler || n.Kind == KindService || n.Kind == KindStore ||
-			n.Kind == KindGRPC || n.Kind == KindMiddleware {
+			n.Kind == KindClient || n.Kind == KindGRPC || n.Kind == KindMiddleware {
 			for _, f := range n.Fields {
 				cleanType := strings.TrimLeft(f.Type, "*")
 				// Skip basic/stdlib types and empty
@@ -389,7 +394,8 @@ func resolveDependencies(graph *Graph) {
 
 var (
 	serviceKeywords = []string{"service", "usecase", "interactor", "manager", "orchestrator", "worker", "processor", "biz"}
-	storeKeywords   = []string{"repository", "repo", "store", "dao", "data", "gateway", "adapter", "persistence", "storage", "client"}
+	clientKeywords  = []string{"client", "caller", "connector", "proxy"}
+	storeKeywords   = []string{"repository", "repo", "store", "dao", "data", "gateway", "adapter", "persistence", "storage"}
 	modelKeywords   = []string{"model", "entity", "dto", "record", "schema", "domain", "aggregate"}
 	handlerKeywords = []string{"handler", "controller", "endpoint", "transport", "api", "resource"}
 

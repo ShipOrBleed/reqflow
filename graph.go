@@ -35,6 +35,7 @@ const (
 	KindFunc      NodeKind = "func"
 	KindHandler   NodeKind = "handler"    // HTTP handler
 	KindStore     NodeKind = "store"      // DB layer / Repository
+	KindClient    NodeKind = "client"    // External HTTP/gRPC client
 	KindModel     NodeKind = "model"      // DB entity / Model
 	KindService   NodeKind = "service"    // Business logic
 	KindEvent     NodeKind = "event"      // Event Bus (Kafka/Rabbit)

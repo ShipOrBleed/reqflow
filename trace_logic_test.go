@@ -90,9 +90,10 @@ func TestRankOf_KnownKinds(t *testing.T) {
 		{KindInterface, 4},
 		{KindEvent, 5},
 		{KindStore, 6},
-		{KindInfra, 7},
-		{KindModel, 8},
-		{KindTable, 9},
+		{KindClient, 7},
+		{KindInfra, 8},
+		{KindModel, 9},
+		{KindTable, 10},
 	}
 	for _, tc := range cases {
 		n := &Node{Kind: tc.kind}

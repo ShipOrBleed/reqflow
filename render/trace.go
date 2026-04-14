@@ -33,6 +33,8 @@ func traceIcon(k reqflow.NodeKind) string {
 		return "E"
 	case reqflow.KindMiddleware:
 		return "MW"
+	case reqflow.KindClient:
+		return "C"
 	default:
 		return "?"
 	}
@@ -57,6 +59,8 @@ func kindLabel(k reqflow.NodeKind) string {
 		return "Event / Topic"
 	case reqflow.KindMiddleware:
 		return "Middleware"
+	case reqflow.KindClient:
+		return "External Client"
 	default:
 		return string(k)
 	}
@@ -80,15 +84,17 @@ const (
 	green  = "\033[32m"
 	yellow = "\033[33m"
 	blue   = "\033[34m"
-	cyan   = "\033[36m"
-	white  = "\033[37m"
-	gray   = "\033[90m"
+	magenta = "\033[35m"
+	cyan    = "\033[36m"
+	white   = "\033[37m"
+	gray    = "\033[90m"
 )
 
 var kindColor = map[reqflow.NodeKind]string{
 	reqflow.KindHandler:   green,
 	reqflow.KindService:   blue,
 	reqflow.KindStore:     yellow,
+	reqflow.KindClient:    magenta,
 	reqflow.KindModel:     red,
 	reqflow.KindInterface: cyan,
 	reqflow.KindGRPC:      cyan,
@@ -426,6 +432,8 @@ func htmlKindColor(k reqflow.NodeKind) string {
 		return "#a78bfa"
 	case reqflow.KindGRPC:
 		return "#2dd4bf"
+	case reqflow.KindClient:
+		return "#c084fc"
 	default:
 		return "#6b7280"
 	}
