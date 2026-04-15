@@ -35,9 +35,9 @@ That's it. reqflow parses your code, finds every route registered on `/orders`, 
 
 ---
 
-## Usage
+## Commands
 
-### 1. Trace by path (most common)
+### `reqflow trace` — Trace a request path
 
 Just type the path. reqflow finds all HTTP methods registered on it and lets you pick:
 
@@ -50,63 +50,64 @@ Multiple routes match "/orders":
   2.  POST /orders
 
 Enter number (1-2): 2
+
+POST /orders
+──────────────
+
+  [H]  OrderHandler   internal/handler/orders.go:45
+       CreateOrder()
+         → svc.Create()
+
+  │
+  ↓  delegates to
+  │
+  [S]  orderService   internal/service/orders.go:89
+       Create()
+         → store.Insert()
+
+  │
+  ↓  queries via
+  │
+  [D]  OrderStore     internal/store/orders.go:67
+       Insert()
 ```
 
-Then it shows the full trace for `POST /orders`.
-
-### 2. Trace by full route
-
-If you already know the method:
+Other ways to trace:
 
 ```bash
-reqflow trace "POST /orders" ./...
+reqflow trace "POST /orders" ./...    # exact route
+reqflow trace "budget" ./...          # substring — shows all matches
 ```
 
-### 3. Trace by substring
+### `reqflow routes` — List all routes in a service
 
-Don't remember the exact path? Use a keyword:
+```
+$ reqflow routes ./...
+
+  GET     /orgs/{orgID}/budgets              Handler.GetBudgets()        handler/handler.go:350
+  POST    /orgs/{orgID}/budgets              Handler.CreateBudget()      handler/handler.go:398
+  DELETE  /orgs/{orgID}/budgets/{budgetID}   Handler.DeleteBudget()      handler/handler.go:442
+  GET     /orgs/{orgID}/reports/metrics      Handler.GetMetrics()        handler/handler.go:700
+  ...
+
+39 routes across 1 handlers
+```
+
+Export as JSON:
 
 ```bash
-reqflow trace "budget" ./...
+reqflow routes -format json ./...
 ```
-
-reqflow finds every route containing "budget" and lets you pick.
 
 ---
 
 ## What You Get
 
-reqflow shows exactly what happens when a request hits your server — which method handles it, what it calls, and where the code lives:
-
-```
-GET /orgs/{orgID}/reports/metrics
-───────────────────────────────────
-
-  [H]  Handler   HTTP Handler · internal/handler/handler.go:700
-       GetMetrics()
-         → svc.GetMetricsByOrgPaginated()
-
-  │
-  ↓  delegates to
-  │
-  [S]  service   Service · internal/service/service.go:1768
-       GetMetricsByOrgPaginated()
-         → store.CountMetricSeriesByOrg()
-         → store.GetMetricSeriesByOrgPaginated()
-
-  │
-  ↓  queries via
-  │
-  [D]  Store     Store / Repository · internal/store/store.go:32
-       CountMetricSeriesByOrg()
-       GetMetricSeriesByOrgPaginated()
-```
-
-Each node shows:
+Each node in the trace shows:
 
 | Part | Meaning |
 |------|---------|
-| `[H]` `[S]` `[D]` `[M]` | Layer — Handler, Service, Store (DB), Model |
+| `[H]` `[S]` `[D]` `[C]` `[M]` | Layer — Handler, Service, Store, Client, Model |
 | `Handler` | Struct name |
 | `internal/handler/handler.go:700` | Package, file, and **line of the method** (not the struct) |
 | `GetMetrics()` | The specific method that handles this route |
@@ -116,7 +117,7 @@ Each node shows:
 
 ## Real-World Examples
 
-### Simple CRUD — 3 layers
+### Handler → Service → Store (most common)
 
 ```
 $ reqflow trace "GET /orgs/{orgID}/budgets" ./...
@@ -125,7 +126,7 @@ $ reqflow trace "GET /orgs/{orgID}/budgets" ./...
        GetBudgets()
          → svc.GetBudgets()
 
-  [S]  service   internal/service/service.go:4170
+  [S]  service   internal/service/service.go:4258
        GetBudgets()
          → store.GetBudgetsByResourceUIDs()
          → store.GetBudgetsByResourceGroupIDs()
@@ -137,28 +138,23 @@ $ reqflow trace "GET /orgs/{orgID}/budgets" ./...
        GetBudgets()
 ```
 
-### Service calling external clients
+### Handler → External Clients (gRPC/HTTP)
 
 ```
 $ reqflow trace "POST /orgs/{orgID}/actions" ./...
 
-  [H]  Handler        internal/handler.go:56
+  [H]  Handler            internal/handler.go:80
        ManualAction()
-         → svc.GetPermissionLevel()
-         → svc.GetGroupForResource()
+         → cloudAccountFetcher.GetPermissionLevel()
+         → resourceFetcher.GetGroupForResource()
 
-  [I]  CredentialFetcher   internal/provider.go:26
+  [C]  ConfigGRPCClient   internal/config_grpc.go:18
        GetPermissionLevel()
-
-  [I]  ResourceFetcher     internal/resource_fetcher.go:15
+         → client.GetCloudAccountPermission()
        GetGroupForResource()
 
-  [D]  Store               internal/store.go:14
-       ...
-
-  [D]  ConfigGRPCClient    internal/config_grpc.go:18
-       GetPermissionLevel()
-       GetGroupForResource()
+  [C]  ConfigServiceClient   internal/configclient/config_grpc.pb.go:35
+       GetCloudAccountPermission()
 ```
 
 ### Interactive route selection
@@ -183,6 +179,8 @@ Pick a number, see the trace. One session, no re-running.
 
 ## Flags
 
+### `reqflow trace`
+
 ```bash
 reqflow trace [flags] <route> [packages]
 ```
@@ -195,18 +193,23 @@ reqflow trace [flags] <route> [packages]
 | `-tablemap` | Show database tables mapped from model struct tags |
 | `-envmap` | Show environment variables read via `os.Getenv` / `viper` |
 
-### Examples with flags
-
 ```bash
-# Save trace as HTML for sharing
 reqflow trace -format html -out trace.html "POST /orders" ./...
-
-# See which DB tables a request touches
 reqflow trace -tablemap "GET /users/{id}" ./...
-
-# See which env vars a request path reads
 reqflow trace -envmap "POST /orders" ./...
 ```
+
+### `reqflow routes`
+
+```bash
+reqflow routes [flags] [packages]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-format text` | Aligned table output (default) |
+| `-format json` | JSON array |
+| `-out <file>` | Write to file instead of stdout |
 
 ---
 
@@ -215,7 +218,7 @@ reqflow trace -envmap "POST /orders" ./...
 reqflow uses Go's type system — not grep, not regexes.
 
 1. **Loads packages** with `golang.org/x/tools/go/packages` and walks the AST
-2. **Classifies structs by structure** — a store is any struct holding a `*sql.DB` field; a handler is any struct whose methods accept `*gofr.Context` or `*gin.Context`
+2. **Classifies structs by structure** — a store is any struct holding a `*sql.DB` field; a handler is any struct whose methods accept `*gofr.Context` or `*gin.Context`; an HTTP client is any struct named `*Client`
 3. **Extracts routes** from `app.GET("/path", h.Method)` calls — including inline anonymous handlers like `app.GET("/health", func(ctx) { ... })`
 4. **Builds a method-level call index** — knows `Handler.GetMetrics()` calls `svc.GetMetricsByOrgPaginated()`, not just "handler depends on service"
 5. **Traces the precise path** — follows actual method calls, not struct dependencies. Only shows the nodes and methods touched by this specific request
@@ -232,29 +235,22 @@ reqflow uses Go's type system — not grep, not regexes.
 | [Fiber](https://gofiber.io) | `func(c *fiber.Ctx) error` |
 | net/http | `func(w http.ResponseWriter, r *http.Request)` |
 
-### Store detection
-
-Detected by struct field types, not naming conventions:
-
-`*sql.DB`, `*sqlx.DB`, `*gorm.DB`, `*mongo.Client`, `*mongo.Database`, `*redis.Client`, `*redis.ClusterClient`, `*pgx.Conn`, `*pgxpool.Pool`, `*dynamodb.Client`, `*firestore.Client`, `*spanner.Client`, `*bigquery.Client`, `*elasticsearch.Client`
-
 ### Layer classification
 
-reqflow classifies structs using both **name patterns** and **structural detection**:
-
-| Layer | Name patterns | Structural detection |
-|-------|--------------|---------------------|
-| Handler | `*Handler`, `*Controller`, `*Endpoint` | Methods accept framework context |
-| Service | `*Service`, `*UseCase`, `*Manager` | — |
-| Store | `*Store`, `*Repository`, `*Repo`, `*Client` | Has DB client field |
-| Model | `*Model`, `*Entity`, `*DTO` | — |
+| Layer | Badge | Name patterns | Structural detection |
+|-------|-------|--------------|---------------------|
+| Handler | `[H]` | `*Handler`, `*Controller`, `*Endpoint` | Methods accept framework context |
+| Service | `[S]` | `*Service`, `*UseCase`, `*Manager` | — |
+| Store | `[D]` | `*Store`, `*Repository`, `*Repo` | Has DB client field (`*sql.DB`, `*gorm.DB`, etc.) |
+| Client | `[C]` | `*Client`, `*Caller`, `*Connector` | — |
+| Model | `[M]` | `*Model`, `*Entity`, `*DTO` | Has DB struct tags |
 
 Override with `.reqflow.yml`:
 
 ```yaml
 layers:
   service_pattern: ".*Service$|.*Processor$"
-  store_pattern:   ".*Store$|.*Repository$|.*Client$"
+  store_pattern:   ".*Store$|.*Repository$"
   model_pattern:   ".*Model$|.*Entity$"
 ```
 
@@ -282,15 +278,20 @@ layers:
 ## Use as a Go library
 
 ```go
-import (
-    "github.com/thzgajendra/reqflow"
-)
+import "github.com/thzgajendra/reqflow"
 
+// Parse codebase
 graph, err := reqflow.Parse(reqflow.ParseOptions{Dir: "."})
-result := reqflow.Trace("POST /orders", graph)
 
-fmt.Println(result.Route)           // "POST /orders"
-fmt.Println(result.Handler.Name)    // "OrderHandler"
+// List all routes
+routes := reqflow.ListRoutes(graph)
+for _, r := range routes {
+    fmt.Printf("%s %s → %s.%s()\n", r.Method, r.Path, r.HandlerName, r.MethodName)
+}
+
+// Trace a specific route
+result := reqflow.Trace("POST /orders", graph)
+fmt.Println(result.Route)
 for _, node := range result.Chain {
     fmt.Printf("[%s] %s\n", node.Kind, node.Name)
 }
