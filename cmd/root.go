@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	reqflow "github.com/thzgajendra/reqflow"
-	"github.com/thzgajendra/reqflow/render"
+	reqflow "github.com/ShipOrBleed/reqflow"
+	"github.com/ShipOrBleed/reqflow/render"
 )
 
 // Execute is the main CLI entrypoint for reqflow.

@@ -1,7 +1,7 @@
 # reqflow
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/thzgajendra/reqflow.svg)](https://pkg.go.dev/github.com/thzgajendra/reqflow)
-[![Go Report Card](https://goreportcard.com/badge/github.com/thzgajendra/reqflow)](https://goreportcard.com/report/github.com/thzgajendra/reqflow)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ShipOrBleed/reqflow.svg)](https://pkg.go.dev/github.com/ShipOrBleed/reqflow)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ShipOrBleed/reqflow)](https://goreportcard.com/report/github.com/ShipOrBleed/reqflow)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **Trace any HTTP request through your Go codebase, statically.**
@@ -9,7 +9,7 @@
 One command. No instrumentation. No runtime. Just point it at your code.
 
 ```bash
-go install github.com/thzgajendra/reqflow/cmd/reqflow@latest
+go install github.com/ShipOrBleed/reqflow/cmd/reqflow@latest
 ```
 
 ---
@@ -278,7 +278,7 @@ layers:
 ## Use as a Go library
 
 ```go
-import "github.com/thzgajendra/reqflow"
+import "github.com/ShipOrBleed/reqflow"
 
 // Parse codebase
 graph, err := reqflow.Parse(reqflow.ParseOptions{Dir: "."})

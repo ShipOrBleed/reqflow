@@ -1,4 +1,4 @@
-module github.com/thzgajendra/reqflow
+module github.com/ShipOrBleed/reqflow
 
 go 1.25.0
 

@@ -4,7 +4,7 @@
 //
 // Install the CLI:
 //
-//	go install github.com/thzgajendra/reqflow/cmd/reqflow@latest
+//	go install github.com/ShipOrBleed/reqflow/cmd/reqflow@latest
 //
 // Use as a library:
 //

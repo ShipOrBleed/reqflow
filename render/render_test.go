@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	reqflow "github.com/thzgajendra/reqflow"
+	reqflow "github.com/ShipOrBleed/reqflow"
 )
 
 // ─── TraceRenderer tests ──────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	reqflow "github.com/thzgajendra/reqflow"
+	reqflow "github.com/ShipOrBleed/reqflow"
 )
 
 // TraceRenderer renders a single request-path trace as a focused,
@@ -462,7 +462,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 %s
 %s
-<div class="reqflow-link"><a href="https://github.com/thzgajendra/reqflow">reqflow</a></div>
+<div class="reqflow-link"><a href="https://github.com/ShipOrBleed/reqflow">reqflow</a></div>
 </div>
 </body>
 </html>`
