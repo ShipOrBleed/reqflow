@@ -5,16 +5,50 @@ import (
 )
 
 // TraceResult holds the complete request path for a single HTTP route.
+//
+// When a route is found, Chain contains the ordered list of nodes from
+// handler through service to store, CalledMethods maps each node ID to
+// the specific methods called on it, and MethodCalls provides the full
+// call index for rendering sub-calls.
+//
+// When multiple routes match a path-only query (e.g. "/orders" matches
+// both GET and POST), MultiMatch is populated instead of Chain, allowing
+// the caller to present a selection to the user.
 type TraceResult struct {
-	Route         string              // matched route, e.g. "POST /orders"
-	Handler       *Node               // the handler node that owns this route
-	Chain         []*Node             // ordered nodes: handler → service → store → model
-	Tables        []string            // database tables touched by this path
-	EnvVars       []string            // environment variables read along this path
-	NotFound      bool                // true when no handler matched the given route
-	CalledMethods map[string][]string  // nodeID → specific methods called on that node
-	MethodCalls   MethodCallIndex     // full method call index for showing sub-calls
-	MultiMatch    []string            // when multiple routes match, list them for the user to pick
+	// Route is the matched route string, e.g. "POST /orders".
+	Route string
+
+	// Handler is the handler node that owns this route.
+	Handler *Node
+
+	// Chain is the ordered list of nodes in the request path:
+	// handler → service → store → model, sorted by architectural layer.
+	Chain []*Node
+
+	// Tables lists database table names touched by this request path.
+	// Populated when -tablemap flag is used.
+	Tables []string
+
+	// EnvVars lists environment variable names read along this request path.
+	// Populated when -envmap flag is used.
+	EnvVars []string
+
+	// NotFound is true when no handler matched the given route query.
+	NotFound bool
+
+	// CalledMethods maps node ID → list of specific methods called on that node
+	// in this request path. Only methods actually invoked are included, not all
+	// methods on the struct.
+	CalledMethods map[string][]string
+
+	// MethodCalls is the full method-level call index, used by renderers
+	// to display sub-calls (e.g. → svc.GetMetrics()).
+	MethodCalls MethodCallIndex
+
+	// MultiMatch is populated when a path-only query matches multiple HTTP
+	// methods (e.g. "/orders" → GET /orders, POST /orders). The caller should
+	// present these options for the user to select one.
+	MultiMatch []string
 }
 
 // layerRank assigns a sort priority to each node kind so the chain

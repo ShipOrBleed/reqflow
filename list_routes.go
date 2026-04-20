@@ -6,18 +6,27 @@ import (
 	"strings"
 )
 
-// RouteInfo holds information about a single registered route.
+// RouteInfo holds information about a single registered HTTP route,
+// including the handler struct, method name, and source location.
 type RouteInfo struct {
-	Method      string // HTTP method (GET, POST, etc.)
-	Path        string // URL path (e.g. /orgs/{orgID}/budgets)
-	HandlerName string // Struct name (e.g. Handler)
-	MethodName  string // Method name (e.g. GetBudgets)
-	File        string // Source file path
-	Line        int    // Line number of the handler method
+	Method      string // HTTP method: GET, POST, PUT, DELETE, PATCH
+	Path        string // URL path, e.g. "/orgs/{orgID}/budgets"
+	HandlerName string // Handler struct name, e.g. "OrderHandler"
+	MethodName  string // Handler method name, e.g. "GetBudgets"
+	File        string // Absolute path to the source file
+	Line        int    // Line number where the handler method is defined
 }
 
-// ListRoutes extracts all registered routes from the graph and returns
-// them sorted by path then method.
+// ListRoutes extracts all registered HTTP routes from the graph.
+// Routes are sorted by path, then by HTTP method.
+//
+// Example:
+//
+//	graph, _ := reqflow.Parse(reqflow.ParseOptions{Dir: "."})
+//	routes := reqflow.ListRoutes(graph)
+//	for _, r := range routes {
+//	    fmt.Printf("%s %s → %s.%s()\n", r.Method, r.Path, r.HandlerName, r.MethodName)
+//	}
 func ListRoutes(g *Graph) []RouteInfo {
 	if g == nil {
 		return nil
@@ -90,7 +99,8 @@ func ListRoutes(g *Graph) []RouteInfo {
 	return routes
 }
 
-// FormatRoutesText renders route info as an aligned text table.
+// FormatRoutesText renders route info as an aligned text table suitable for terminal output.
+// Includes a summary line showing total routes and handler count.
 func FormatRoutesText(routes []RouteInfo) string {
 	if len(routes) == 0 {
 		return "No routes found.\n"
@@ -137,7 +147,8 @@ func FormatRoutesText(routes []RouteInfo) string {
 	return sb.String()
 }
 
-// FormatRoutesJSON renders route info as a JSON array.
+// FormatRoutesJSON renders route info as a JSON array of objects.
+// Each object has fields: method, path, handler, method_name, file, line.
 func FormatRoutesJSON(routes []RouteInfo) string {
 	var sb strings.Builder
 	sb.WriteString("[\n")

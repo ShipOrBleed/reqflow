@@ -10,18 +10,40 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// ParseOptions configures the Parse function. Dir is the Go module directory
-// to analyze. Boolean flags enable optional analysis passes.
+// ParseOptions configures the [Parse] function.
 type ParseOptions struct {
-	Dir      string
-	Filter   string
-	Config   *ReqflowConfig
-	EnvMap   bool
+	// Dir is the Go module directory to analyze. Use "./..." or "." for current directory.
+	Dir string
+
+	// Filter limits analysis to packages matching this substring.
+	Filter string
+
+	// Config is an optional .reqflow.yml configuration. See [LoadConfig].
+	Config *ReqflowConfig
+
+	// EnvMap enables environment variable detection (os.Getenv, viper.Get*).
+	// Creates KindEnvVar nodes and EdgeReads edges.
+	EnvMap bool
+
+	// TableMap enables model-to-database table mapping from struct tags (gorm, sqlx, bson).
+	// Creates KindTable nodes and EdgeMapsTo edges.
 	TableMap bool
 }
 
-// Parse loads Go packages from the target directory and builds the
-// full architecture graph through a multi-pass analysis pipeline.
+// Parse loads Go packages from the given directory, walks the AST, and builds
+// a complete architecture graph. It detects handlers, services, stores, models,
+// routes, middleware, gRPC registrations, events, and struct field dependencies.
+//
+// The resulting [Graph] can be passed to [Trace] to follow a specific request path,
+// or to [ListRoutes] to enumerate all registered HTTP routes.
+//
+// Example:
+//
+//	graph, err := reqflow.Parse(reqflow.ParseOptions{Dir: "./..."})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	result := reqflow.Trace("POST /orders", graph)
 func Parse(opts ParseOptions) (*Graph, error) {
 	mode := packages.NeedName |
 		packages.NeedSyntax |

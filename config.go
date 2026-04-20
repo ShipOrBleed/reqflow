@@ -7,7 +7,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ReqflowConfig represents the .reqflow.yml configuration schema.
+// ReqflowConfig represents the .reqflow.yml configuration file.
+// Place this file in your project root to customize layer detection patterns
+// and ignore specific packages.
+//
+// Example .reqflow.yml:
+//
+//	parser:
+//	  ignore_packages:
+//	    - vendor
+//	    - _test
+//	  domain_naming:
+//	    service_match: ".*Service$"
+//	    store_match: ".*Store$|.*Repository$"
 type ReqflowConfig struct {
 	Linter struct {
 		VetRules []string `yaml:"vet_rules"`
@@ -33,6 +45,8 @@ type ReqflowConfig struct {
 }
 
 // LoadConfig reads and parses a .reqflow.yml configuration file.
+// Returns an error if the file doesn't exist or contains invalid YAML.
+// Regex patterns in domain_naming are compiled into ServiceRegex, StoreRegex, ModelRegex.
 func LoadConfig(path string) (*ReqflowConfig, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {

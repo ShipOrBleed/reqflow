@@ -1,15 +1,36 @@
-// Package reqflow provides architecture visualization and static analysis for Go
-// codebases. It parses Go ASTs to build dependency graphs, detect architectural
-// patterns (handlers, services, stores, models), and render trace output.
+// Package reqflow statically traces HTTP request paths through Go codebases.
 //
-// Install the CLI:
+// Given a route like "POST /orders", reqflow finds the handler, follows the
+// call chain through services and stores, and shows exactly which methods
+// are called at each layer — with file names and line numbers.
+//
+// # Install the CLI
 //
 //	go install github.com/ShipOrBleed/reqflow/cmd/reqflow@latest
 //
-// Use as a library:
+// # Trace a request
 //
 //	graph, err := reqflow.Parse(reqflow.ParseOptions{Dir: "."})
-//	result := reqflow.Trace("GET /users", graph)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	result := reqflow.Trace("POST /orders", graph)
+//	for _, node := range result.Chain {
+//	    fmt.Printf("[%s] %s\n", node.Kind, node.Name)
+//	}
+//
+// # List all routes
+//
+//	routes := reqflow.ListRoutes(graph)
+//	for _, r := range routes {
+//	    fmt.Printf("%s %s → %s.%s()\n", r.Method, r.Path, r.HandlerName, r.MethodName)
+//	}
+//
+// # Supported frameworks
+//
+// GoFr, Gin, Echo, Fiber, and net/http handlers are automatically detected.
+// Stores are detected by struct field types (*sql.DB, *gorm.DB, *mongo.Client, etc.),
+// not by naming conventions.
 package reqflow
 
 import (

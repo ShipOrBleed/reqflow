@@ -35,8 +35,9 @@ func isNoiseCall(fieldName, methodName string) bool {
 	return noiseFields[fieldName] || noiseMethods[methodName]
 }
 
-// MethodCall represents a call from one struct method to another struct's method.
-// Example: Handler.GetMetrics calls field "svc" method "GetMetrics" on Service.
+// MethodCall represents a call from one struct method to another struct's method
+// via a struct field. For example, if Handler.GetMetrics() contains the call
+// h.svc.GetMetricsByOrg(), the MethodCall would be {FieldName: "svc", TargetMethod: "GetMetricsByOrg"}.
 type MethodCall struct {
 	FieldName    string // e.g. "svc", "store"
 	TargetMethod string // e.g. "GetMetrics", "GetCostRecords"
