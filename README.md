@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ShipOrBleed/reqflow.svg)](https://pkg.go.dev/github.com/ShipOrBleed/reqflow)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ShipOrBleed/reqflow)](https://goreportcard.com/report/github.com/ShipOrBleed/reqflow)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Trace any HTTP request through your Go codebase, statically.**
 
@@ -301,4 +301,4 @@ for _, node := range result.Chain {
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
